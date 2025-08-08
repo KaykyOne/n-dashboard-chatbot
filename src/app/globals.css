@@ -1,13 +1,19 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #121212;
+  --foreground: #121212;
+  --primary: #6F0A59;
+  --secundary: #4B003B;
+  --border-color: #838383;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-primary: #6F0A59;
+  --color-secundary: #4B003B;
+  --color-border-color: #838383;
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
@@ -16,11 +22,64 @@
   :root {
     --background: #0a0a0a;
     --foreground: #ededed;
+    --primary: #6F0A59;
+    --secundary: #4B003B;
+    --border-color: #838383;
   }
 }
 
 body {
   background: var(--background);
+  background-image: url('/back.svg');
+  background-attachment: fixed;
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+.input {
+  @apply bg-white p-2 pl-3 pr-3 rounded-full text-black shadow-2xl transition-all duration-300 focus:outline-none w-full;
+  box-shadow: 0 0 0 0 transparent;
+}
+
+.input:focus {
+  box-shadow: 0 0 0 4px var(--primary);
+}
+
+.button {
+  @apply w-full text-white p-3 rounded-full text-2xl font-bold flex gap-2 justify-center cursor-pointer transition duration-300;
+  background: linear-gradient(to left, var(--primary), var(--secundary));
+}
+
+.button:hover {
+  opacity: 0.9;
+  box-shadow: 0 0 20px var(--primary);
+}
+
+.aparecer {
+  animation-name: aparecer;
+  animation-duration: 2s;
+  animation-iteration-count: 1;
+  animation-fill-mode: initial;
+}
+
+@keyframes aparecer {
+  0% {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.material-symbols-outlined {
+  font-variation-settings:
+  'FILL' 1,
+  'wght' 400,
+  'GRAD' 0,
+  'opsz' 24
+}
+
+ 
