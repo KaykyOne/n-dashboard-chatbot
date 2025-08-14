@@ -4,7 +4,7 @@ export default function Card({ val, tipo }) {
 
     const cards = [
         (
-            <div className='flex flex-col p-5 bg-gradient-to-l from-[#011C00] to-[#045900] justify-center items-center gap-2 rounded-2xl border border-[#0DFF00] text-[#0DFF00] aparecer hover:-translate-y-2 transition-all duration-600 cursor-pointer group h-fit'>
+            <div className='flex flex-col p-5 bg-gradient-to-l from-[#011C00] to-[#045900] justify-center items-center gap-2 rounded-2xl border border-[#0DFF00] text-[#0DFF00] aparecer hover:-translate-y-2 transition-all duration-600 cursor-pointer group h-fit shadow-green-500 hover:shadow-2xl'>
                 <div className='bg-[#0DFF00] flex rounded-full h-[80px] w-[80px]  justify-center items-center text-center'>
                     <span className="material-symbols-outlined text-[#011C00] !text-5xl">
                         check
@@ -34,7 +34,7 @@ export default function Card({ val, tipo }) {
         ),
         
         (
-            <div className='flex flex-col p-5 bg-gradient-to-l from-[#422100] to-[#663200] justify-center items-center gap-2 rounded-2xl border border-[#FF7E00] text-[#FF7E00] aparecer hover:-translate-y-2 transition-all duration-600 cursor-pointer group h-fit'>
+            <div className='flex flex-col p-5 bg-gradient-to-l from-[#422100] to-[#663200] justify-center items-center gap-2 rounded-2xl border border-[#FF7E00] text-[#FF7E00] aparecer hover:-translate-y-2 transition-all duration-600 cursor-pointer group h-fit shadow-amber-500 hover:shadow-2xl'>
                 <div className='bg-[#FF7E00] flex rounded-full h-[80px] w-[80px]  justify-center items-center text-center'>
                     <span className="material-symbols-outlined text-[#422100] !text-5xl">
                         local_fire_department
@@ -61,7 +61,7 @@ export default function Card({ val, tipo }) {
         ),
 
         (
-            <div className='flex flex-col p-5 bg-gradient-to-l from-[#060041] to-[#030020] justify-center items-center gap-2 rounded-2xl border border-[#0066FF] text-[#0066FF] aparecer hover:-translate-y-2 transition-all duration-600 cursor-pointer group h-fit'>
+            <div className='flex flex-col p-5 bg-gradient-to-l from-[#060041] to-[#030020] justify-center items-center gap-2 rounded-2xl border border-[#0066FF] text-[#0066FF] aparecer hover:-translate-y-2 transition-all duration-600 cursor-pointer group h-fit shadow-sky-500 hover:shadow-2xl'>
                 <div className='bg-[#0066FF] flex rounded-full h-[80px] w-[80px]  justify-center items-center text-center'>
                     <span className="material-symbols-outlined text-[#060041] !text-5xl">
                         mode_cool

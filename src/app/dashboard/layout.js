@@ -4,8 +4,7 @@ import Siderbar from '@/components/Siderbar'
 export default function layout({ children }) {
     return (
         <div>
-            <Siderbar />
-            <div className='ml-[300px]'>
+            <div>
                 {children}
             </div>
         </div>

@@ -4,7 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 
 const supabase = createClient(apiURL, apiKey)
 
-export async function selectAllLeads() {
+async function selectAllLeads() {
     const { data, error } = await supabase
         .from('leads')
         .select()
@@ -16,3 +16,19 @@ export async function selectAllLeads() {
     console.log(data);
     return data
 }
+
+async function updateLead(id, qualidade) {
+    const { data, error } = await supabase
+        .from('leads')
+        .update({ qualidade })
+        .eq('id', id)
+
+    if (error) {
+        console.error(error)
+        return []
+    }
+    console.log(data);
+    return data
+}
+
+export { selectAllLeads, updateLead };
