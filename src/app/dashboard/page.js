@@ -1,7 +1,7 @@
 'use client'
 import React, { useState, useEffect } from 'react'
 import Card from '@/components/Card'
-import { selectAllLeads, updateLead } from '@/app/hooks/useLead'
+import { selectAllLeads, updateLead } from '@/hooks/useLead'
 import { format } from 'date-fns'
 import { useRouter } from 'next/navigation'
 
@@ -9,6 +9,8 @@ export default function Page() {
   const router = useRouter()
   const [leads, setLeads] = useState([]);
   const [filtro, setFiltro] = useState('fria');
+  const [pesquisar, setPesquisar] = useState('');
+
 
   useEffect(() => {
     const buscar = async () => {
@@ -34,12 +36,20 @@ export default function Page() {
     setLeads(data || []);
   }
 
-
   const finalizadas = leads.filter(item => item.qualidade == 'finalizada').length
   const frias = leads.filter(item => item.qualidade == 'fria').length
   const quentes = leads.filter(item => item.qualidade == 'quente').length
 
-  const leadsFiltrados = leads.filter(item => item.qualidade == filtro);
+  let leadsFiltrados = leads.filter(item => item.qualidade == filtro);
+
+  if (pesquisar != "") {
+    leadsFiltrados = leads.filter(item => String(item.numero).includes(String(pesquisar)));
+  }
+
+  const alterarFiltro = (valor) => {
+    setPesquisar('');
+    setFiltro(valor)
+  }
 
   return (
     <div className='w-full h-full p-3 flex flex-col'>
@@ -77,15 +87,16 @@ export default function Page() {
           <Card tipo={1} val={quentes} />
           <Card tipo={2} val={frias} />
         </div>
+        <input className='p-2 border border-gray-600 bg-gray-500' value={pesquisar} onChange={(e) => setPesquisar(e.target.value)} />
         <div className='flex flex-col p-5'>
           <div className='grid grid-cols-1 lg:grid-cols-3 w-full'>
-            <button className='bg-[#1B1B1B] rounded-t-2xl p-3 border border-border-color hover:bg-neutral-700 transition duration-500 cursor-pointer' onClick={() => setFiltro('finalizada')}>
+            <button className='bg-[#1B1B1B] rounded-t-2xl p-3 border border-border-color hover:bg-neutral-700 transition duration-500 cursor-pointer' onClick={() => alterarFiltro('finalizada')}>
               Finalizados 💵
             </button>
-            <button className='bg-[#1B1B1B] rounded-t-2xl p-3 border border-border-color hover:bg-neutral-700 transition duration-500 cursor-pointer' onClick={() => setFiltro('quente')}>
+            <button className='bg-[#1B1B1B] rounded-t-2xl p-3 border border-border-color hover:bg-neutral-700 transition duration-500 cursor-pointer' onClick={() => alterarFiltro('quente')}>
               Quentes 🔥
             </button>
-            <button className='bg-[#1B1B1B] rounded-t-2xl p-3 border border-border-color hover:bg-neutral-700 transition duration-500 cursor-pointer' onClick={() => setFiltro('fria')}>
+            <button className='bg-[#1B1B1B] rounded-t-2xl p-3 border border-border-color hover:bg-neutral-700 transition duration-500 cursor-pointer' onClick={() => alterarFiltro('fria')}>
               Frios ❄️
             </button>
           </div>
@@ -100,7 +111,7 @@ export default function Page() {
             </div>
 
             {/* Linhas com dados */}
-            {leadsFiltrados.map((lead, i) => (
+            {(leadsFiltrados || []).map((lead, i) => (
               <div
                 key={i}
                 className="grid grid-cols-5 gap-2 py-3 text-sm text-gray-200 border-b border-border-color last:border-none hover:bg-[#2b2b2b] transition-colors p-1 items-center group"

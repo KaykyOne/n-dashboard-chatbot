@@ -21,7 +21,6 @@ export default function RootLayout({ children }) {
     <html lang="pt-br">
       <head>
         <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,1,0" rel="stylesheet" />
-
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
