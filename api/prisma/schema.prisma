@@ -1,0 +1,97 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+enum WhatsAppProvider {
+  BAILEYS
+  WEBJS
+}
+
+enum Qualidade {
+  FRIA
+  MORNA
+  QUENTE
+}
+
+enum Autor {
+  Lead
+  Usuario
+  Assistant
+}
+
+enum InstanceStatus {
+  OFFLINE
+  CONNECTING
+  ONLINE
+  ERROR
+}
+
+model Usuarios {
+  id                  Int                 @id @default(autoincrement())
+  created_at          DateTime            @default(now()) @db.Timestamptz(6)
+  email               String              @unique
+  senha               String
+  plano               String?
+  limite_atendimentos Int                 @default(0)
+  ativo               Boolean             @default(true)
+  ia_ativa            Boolean             @default(true)
+  prompt              String?
+  whatsappInstances   WhatsappInstances[]
+  leads               Leads[]
+  mensagens           Mensagens[]
+}
+
+model WhatsappInstances {
+  id           Int              @id @default(autoincrement())
+  cliente      Usuarios         @relation(fields: [cliente_id], references: [id])
+  cliente_id   Int
+  provider     WhatsAppProvider
+  status       InstanceStatus   @default(OFFLINE)
+  session_path String?
+  qr_code      String?
+  created_at   DateTime         @default(now())
+  updated_at   DateTime         @updatedAt
+}
+
+model Leads {
+  id         Int         @id @default(autoincrement())
+  cliente    Usuarios    @relation(fields: [cliente_id], references: [id])
+  cliente_id Int
+  numero     String
+  qualidade  Qualidade?  @default(FRIA)
+  ativo      Boolean     @default(true)
+  interesse  String?
+  ia_ativa   Boolean     @default(true)
+  created_at DateTime    @default(now())
+  updated_at DateTime    @updatedAt
+  historicos Historico[]
+  mensagens  Mensagens[]
+
+  @@unique([cliente_id, numero])
+}
+
+model Mensagens {
+  id             Int      @id @default(autoincrement())
+  origem         Usuarios @relation(fields: [origem_id], references: [id])
+  origem_id      Int
+  destino        Leads    @relation(fields: [destino_id], references: [id])
+  destino_id     Int
+  conteudo       String
+  enviado_por_ia Boolean  @default(false)
+  criado_em      DateTime @default(now())
+}
+
+model Historico {
+  id            Int      @id @default(autoincrement())
+  lead          Leads    @relation(fields: [lead_id], references: [id])
+  lead_id       Int
+  mensagem      String
+  autor         Autor
+  tokens_usados Int?
+  criado_em     DateTime @default(now())
+}

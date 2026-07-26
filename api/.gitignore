@@ -1,0 +1,18 @@
+node_modules
+# Keep environment variables out of version control
+.env
+
+/src/generated/prisma
+
+/generated/prisma
+
+/src/generated/prisma
+
+/.wwebjs_auth
+
+/.wwebjs_cache
+
+/audios/..
+
+/src/bots/baileys/sessions
+/src/bots/whatsapp_web/sessions
