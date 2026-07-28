@@ -1,7 +1,6 @@
-import fs from "fs/promises";
 import { InstanceStatus, WhatsAppProvider } from "../../generated/prisma/enums.js";
 import prisma from "../../prisma/prisma.js";
-import { createLogger } from "../logger.js";
+import { createLogger } from "../utils/logger.js";
 
 const logger = createLogger({ module: "useMensagem" });
 
@@ -51,21 +50,6 @@ export default function useMensagem() {
         return true;
     }
 
-    async function formatarNumero(numero: string, client: any) {
-        if (!client) {
-            return numero;
-        }
-
-        if (numero.endsWith("@lid")) {
-            const jidReal = await client.getContactById(numero);
-            if (jidReal) numero = jidReal;
-        } else {
-            numero = numero.split("@")[0];
-        }
-
-        return numero;
-    }
-
     async function marcarEnviada(id: number) {
         try {
             await prisma.mensagens.update({
@@ -94,69 +78,11 @@ export default function useMensagem() {
         return mensagens;
     }
 
-    async function iniciarPollingMensagens(usuario_id: number, funct: any, intervalo: number = 5000) {
-        setInterval(async () => {
-            const mensagens = await buscarMensagensPendentes(usuario_id);
-
-            for (const msg of mensagens) {
-                const numeroFormatado = msg.destino.numero.includes("@c.us")
-                    ? msg.destino.numero
-                    : `${msg.destino.numero}@c.us`;
-
-                funct(msg.conteudo, numeroFormatado);
-                await marcarEnviada(msg.id);
-            }
-        }, intervalo);
-    }
-
-    async function deleteFolder(folderPath: string) {
-        try {
-            await fs.rm(folderPath, { recursive: true, force: true });
-            logger.info({ folderPath }, "Pasta removida com sucesso");
-        } catch (err) {
-            logger.error({ folderPath, err }, "Erro ao apagar pasta");
-        }
-    }
-
-    async function escutarQrCode(client: any, usuario_id: number, intervalo: number = 5000) {
-        logger.info({ usuarioId: usuario_id, intervalo }, "Escutando atualizacoes de QR code via polling");
-
-        let ultimoQrCode: string | null = null;
-
-        setInterval(async () => {
-            try {
-                const instance = await prisma.whatsappInstances.findFirst({
-                    where: { cliente_id: usuario_id },
-                    select: { qr_code: true }
-                });
-
-                if (instance && instance.qr_code !== ultimoQrCode) {
-                    ultimoQrCode = instance.qr_code;
-
-                    if (instance.qr_code === "" || instance.qr_code === null) {
-                        logger.warn({ usuarioId: usuario_id }, "QR code limpo; reiniciando cliente e limpando autenticao local");
-                        await client.destroy();
-                        await new Promise((res) => setTimeout(res, 5000));
-                        await deleteFolder(".wwebjs_auth");
-                        await deleteFolder(".wwebjs_cache");
-                        client.initialize();
-                    }
-                }
-            } catch (err) {
-                logger.error({ usuarioId: usuario_id, err }, "Erro ao verificar QR code");
-            }
-        }, intervalo);
-    }
-
     return {
         atualizarQrCode,
         atualizarConecao,
         testMensagem,
-        formatarNumero,
         marcarEnviada,
-        buscarMensagensPendentes,
-        iniciarPollingMensagens,
-        deleteFolder,
-        escutarQrCode
+        buscarMensagensPendentes
     };
 }

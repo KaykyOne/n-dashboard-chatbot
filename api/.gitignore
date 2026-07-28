@@ -8,11 +8,6 @@ node_modules
 
 /src/generated/prisma
 
-/.wwebjs_auth
-
-/.wwebjs_cache
-
 /audios/..
 
 /src/bots/baileys/sessions
-/src/bots/whatsapp_web/sessions

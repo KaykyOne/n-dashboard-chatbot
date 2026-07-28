@@ -1,15 +1,14 @@
 import { Usuarios } from "../../generated/prisma/client";
-import type { WhatsAppProvider } from "../../generated/prisma/enums.js";
 import Funcoes from "../funcs/useUsuario";
 import { startBot as startManagedBot, usuarios } from "../services/bot.service";
-import { createLogger } from "../logger";
+import { createLogger } from "../utils/logger";
 
 let iniciado = false;
 const logger = createLogger({ module: "bot-bootstrap" });
 
-const startBot = async (provider?: WhatsAppProvider | string) => {
+const startBot = async () => {
     const search: Usuarios[] = await Funcoes().getAllUsers();
-    const scopedLogger = createLogger({ module: "bot-bootstrap", provider: provider ?? "DEFAULT" });
+    const scopedLogger = createLogger({ module: "bot-bootstrap", provider: "BAILEYS" });
 
     if (search.length <= 0) {
         scopedLogger.warn("Nenhum bot encontrado para iniciar");
@@ -19,7 +18,7 @@ const startBot = async (provider?: WhatsAppProvider | string) => {
     const resultados = await Promise.allSettled(
         search.map(async (usuario) => {
             scopedLogger.info({ usuarioId: usuario.id }, "Iniciando cliente do usuario");
-            return startManagedBot(usuario.id, provider);
+            return startManagedBot(usuario.id);
         })
     );
 

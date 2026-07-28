@@ -1,9 +1,9 @@
 {
   "dependencies": {
+    "@faker-js/faker": "^10.5.0",
     "@prisma/adapter-pg": "^7.1.0",
     "@prisma/client": "^7.1.0",
     "@whiskeysockets/baileys": "^7.0.0-rc.9",
-    "baileys": "github:WhiskeySockets/Baileys",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
@@ -13,7 +13,6 @@
     "pino": "^10.2.1",
     "prompt-sync": "^4.2.0",
     "qrcode-terminal": "^0.12.0",
-    "whatsapp-web.js": "^1.34.7",
     "zod": "^3.25.76"
   },
   "name": "botchat",

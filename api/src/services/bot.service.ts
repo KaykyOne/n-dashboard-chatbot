@@ -1,9 +1,8 @@
 import fs from "fs";
-import type { WhatsAppProvider } from "../../generated/prisma/enums.js";
 import { defaultProvider, getProviderAdapter } from "../bots/providers.js";
 import type { Usuario } from "../types/usuario.js";
 import useMensagem from "../funcs/useMensagem.js";
-import { createLogger } from "../logger.js";
+import { createLogger } from "../utils/logger.js";
 
 const { atualizarQrCode } = useMensagem();
 const logger = createLogger({ module: "bot-service" });
@@ -14,8 +13,8 @@ type DisconnectBotOptions = {
     resetSession?: boolean;
 };
 
-async function removeProviderSessions(provider: WhatsAppProvider, id: number) {
-    const adapter = getProviderAdapter(provider);
+async function removeProviderSessions(id: number) {
+    const adapter = getProviderAdapter();
 
     for (const sessionPath of adapter.getSessionPaths(id)) {
         if (!fs.existsSync(sessionPath)) {
@@ -23,19 +22,19 @@ async function removeProviderSessions(provider: WhatsAppProvider, id: number) {
         }
 
         fs.rmSync(sessionPath, { recursive: true, force: true });
-        logger.info({ usuarioId: id, provider, sessionPath }, "Sessao do provider removida");
+        logger.info({ usuarioId: id, provider: defaultProvider, sessionPath }, "Sessao do provider removida");
     }
 }
 
 async function disconnectRegisteredUser(user: Usuario, options?: DisconnectBotOptions) {
-    const adapter = getProviderAdapter(user.provider);
+    const adapter = getProviderAdapter();
 
     logger.info({ usuarioId: user.id, provider: user.provider }, "Iniciando desconexao do usuario");
     await adapter.disconnect(user);
     await atualizarQrCode("", user.id, user.provider);
 
     if (options?.resetSession) {
-        await removeProviderSessions(user.provider, user.id);
+        await removeProviderSessions(user.id);
     }
 
     usuarios = usuarios.filter((usuario) => usuario.id !== user.id);
@@ -61,24 +60,16 @@ async function disconnectBot(id: number, options?: DisconnectBotOptions) {
     }
 }
 
-async function startBot(id: number, providerInput?: WhatsAppProvider | string) {
-    const provider = getProviderAdapter(providerInput).provider;
+async function startBot(id: number) {
+    const adapter = getProviderAdapter();
+    const provider = adapter.provider;
     const existente = usuarios.find((usuario) => usuario.id === id);
 
     if (existente) {
-        if (existente.provider === provider) {
-            logger.warn({ usuarioId: id, provider }, "Usuario ja possui cliente registrado no provider solicitado");
-            return;
-        }
-
-        logger.info(
-            { usuarioId: id, providerAtual: existente.provider, novoProvider: provider },
-            "Trocando provider do usuario"
-        );
-        await disconnectRegisteredUser(existente);
+        logger.warn({ usuarioId: id, provider }, "Usuario ja possui cliente Baileys registrado");
+        return;
     }
 
-    const adapter = getProviderAdapter(provider);
     const user: Usuario = {
         id,
         qrCode: null,

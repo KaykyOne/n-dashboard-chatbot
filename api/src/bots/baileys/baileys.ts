@@ -10,7 +10,7 @@ import path from "path";
 import pino from "pino";
 import useBot from "../../funcs/useBot";
 import useMensagem from "../../funcs/useMensagem";
-import { createLogger } from "../../logger";
+import { createLogger } from "../../utils/logger";
 import type { Usuario } from "../../types/usuario";
 
 const mensagensPendentes: Record<string, string> = {};

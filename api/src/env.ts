@@ -35,10 +35,6 @@ const envSchema = z.object({
     emptyStringToUndefined,
     z.coerce.number().int().positive().default(3009),
   ),
-  WHATSAPP_PROVIDER: z.preprocess(
-    emptyStringToUndefined,
-    z.enum(["BAILEYS", "WEBJS"]).default("BAILEYS"),
-  ),
 });
 
 const formatIssues = (scope: string, issues: z.ZodIssue[]) => {
@@ -63,7 +59,7 @@ const parseEnv = <TSchema extends z.ZodTypeAny>(
 };
 
 const serverEnv = parseEnv(
-  envSchema.pick({ PORT: true, WHATSAPP_PROVIDER: true }),
+  envSchema.pick({ PORT: true }),
   "server",
 );
 const openAiEnv = parseEnv(envSchema.pick({ OPENAI_KEY: true }), "openai");

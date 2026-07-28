@@ -9,7 +9,6 @@ generator client {
 
 enum WhatsAppProvider {
   BAILEYS
-  WEBJS
 }
 
 enum Qualidade {
