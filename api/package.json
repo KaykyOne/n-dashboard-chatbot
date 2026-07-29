@@ -20,7 +20,8 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "start": "tsx src/server.ts"
+    "start": "tsx src/server.ts",
+    "test:calculations": "tsx --test src/funcs/calculations.test.ts"
   },
   "keywords": [],
   "author": "",

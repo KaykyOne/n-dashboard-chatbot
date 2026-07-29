@@ -102,13 +102,18 @@ async function startBot(usuario: Usuario) {
         if (qr) {
             usuario.qrCode = qr;
             usuario.ativado = true;
-            await funcoes.atualizarQrCode(qr, usuarioId, "BAILEYS");
+            usuario.status = "CONNECTING";
             botLogger.info({ qrLength: qr.length }, "QR code atualizado");
         }
 
         if (connection === "open") {
             usuario.tentativasReconexao = 0;
-            await funcoes.atualizarConecao(usuarioId, "ONLINE", "BAILEYS");
+            usuario.ativado = true;
+            usuario.status = "ONLINE";
+            usuario.qrCode = null;
+            await funcoes.atualizarConecao(usuarioId, "ONLINE", "BAILEYS").catch((err) => {
+                botLogger.warn({ err }, "Nao foi possivel persistir o status online");
+            });
             botLogger.info("Cliente online");
         }
 
@@ -118,7 +123,10 @@ async function startBot(usuario: Usuario) {
 
             usuario.cliente = null;
             usuario.qrCode = null;
-            await funcoes.atualizarConecao(usuarioId, "OFFLINE", "BAILEYS");
+            usuario.status = "OFFLINE";
+            await funcoes.atualizarConecao(usuarioId, "OFFLINE", "BAILEYS").catch((err) => {
+                botLogger.warn({ err }, "Nao foi possivel persistir o status offline");
+            });
             botLogger.warn({ statusCode, shouldReconnect }, "Cliente desconectado");
 
             if (!usuario.ativado || !shouldReconnect) {
@@ -140,12 +148,13 @@ async function startBot(usuario: Usuario) {
                     { tentativa: usuario.tentativasReconexao },
                     "Tentando reconectar cliente"
                 );
+                usuario.status = "CONNECTING";
                 startBot(usuario);
                 return;
             }
 
             usuario.tentativasReconexao = 1;
-            await funcoes.atualizarQrCode("", usuarioId, "BAILEYS");
+            usuario.status = "CONNECTING";
             botLogger.warn({ tentativa: usuario.tentativasReconexao }, "Primeira tentativa de reconexao");
             startBot(usuario);
         }
@@ -355,12 +364,14 @@ async function disconnectBot(usuario: Usuario) {
 
         usuario.cliente = null;
         usuario.qrCode = null;
+        usuario.status = "OFFLINE";
 
         botLogger.info("Cliente desconectado com sucesso");
     } catch (err) {
         botLogger.error({ err }, "Erro ao desconectar cliente");
         usuario.cliente = null;
         usuario.ativado = false;
+        usuario.status = "OFFLINE";
     }
 }
 

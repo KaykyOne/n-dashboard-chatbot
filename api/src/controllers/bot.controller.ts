@@ -1,5 +1,10 @@
 import { Request, Response } from "express";
-import { disconnectBot, startBot } from "../services/bot.service.js";
+import {
+    disconnectBot,
+    getBotConnectionState,
+    requestBotPairingCode,
+    startBot
+} from "../services/bot.service.js";
 import { createLogger } from "../utils/logger.js";
 
 const logger = createLogger({ module: "bot-controller" });
@@ -54,12 +59,40 @@ async function getQrCode(req: Request, res: Response) {
 
     try {
         logger.info({ usuarioId: Number(id) }, "Requisicao de QR Code recebida");
-        // Aqui você pode adicionar a lógica para obter o QR Code
-        res.status(200).send({ message: "QR Code obtido com sucesso!" });
+        res.status(200).send(getBotConnectionState(Number(id)));
     } catch (err) {
         logger.error({ usuarioId: Number(id), err }, "Erro ao obter QR Code");
         res.status(500).send({ message: "Erro ao obter QR Code!" });
     }
 };
 
-export { disconnect, start, getQrCode };
+async function pairingCode(req: Request, res: Response) {
+    const id = Number(req.params.id);
+    const phoneNumber = String(req.body?.phoneNumber ?? "");
+
+    if (!Number.isInteger(id) || id <= 0) {
+        res.status(400).send({ message: "Id de usuario invalido!" });
+        return;
+    }
+
+    if (!phoneNumber.trim()) {
+        res.status(400).send({ message: "Informe o numero com DDI para gerar o codigo." });
+        return;
+    }
+
+    try {
+        const code = await requestBotPairingCode(id, phoneNumber);
+        res.status(200).send({
+            pairingCode: code,
+            message: "Codigo de pareamento gerado com sucesso!"
+        });
+    } catch (err) {
+        const message = err instanceof Error ? err.message : "Erro ao gerar codigo de pareamento!";
+        const status = message.includes("ja esta conectado") ? 409 : 400;
+
+        logger.error({ usuarioId: id, err }, "Erro ao gerar codigo de pareamento");
+        res.status(status).send({ message });
+    }
+}
+
+export { disconnect, start, getQrCode, pairingCode };

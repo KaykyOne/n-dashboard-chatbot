@@ -5,6 +5,7 @@ import useUsuario from './useUsuario.js';
 import { configurePrompt, promptColombo, Message } from './config.js';
 import chatgpt from './chatgpt.js';
 import fs from 'fs';
+import { runCalculationAgent } from './ai-calculator-agent.js';
 
 const { getAtividade } = useUsuario();
 
@@ -173,12 +174,19 @@ export default function useBot() {
       historico.push({ role: 'system', content: `interesse atual do usuario:${lead.interesse}` });
     }
 
-    const res = await chatgpt.chat.completions.create({
-      model: 'o4-mini',
-      messages: historico
-    })
+    const resposta = await runCalculationAgent(historico, {
+      complete: async (messages) => {
+        const completion = await chatgpt.chat.completions.create({
+          model: 'o4-mini',
+          messages,
+          response_format: {
+            type: 'json_object'
+          }
+        });
 
-    const resposta = res.choices[0].message.content;
+        return completion.choices[0].message.content;
+      }
+    });
 
     if (lead && resposta) {
       await insertHistorico({

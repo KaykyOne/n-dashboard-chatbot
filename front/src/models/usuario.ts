@@ -11,6 +11,7 @@ export interface Usuario {
   limite_atendimentos: number;
   ativo: boolean;
   ia_ativa: boolean;
+  modo_teste: boolean;
   prompt?: string | null;
   whatsappInstances?: WhatsappInstance[];
   leads?: Lead[];

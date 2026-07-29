@@ -10,6 +10,7 @@ const serverRouter = express.Router();
 serverRouter.use(cors({
     origin: "*"
 }));
+serverRouter.use(express.json());
 
 serverRouter.use("/bot", botRouter);
 

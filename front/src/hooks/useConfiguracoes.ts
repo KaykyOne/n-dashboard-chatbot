@@ -1,84 +1,170 @@
 'use client'
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { supabase } from "./supabase";
 import { toast } from "react-toastify";
+
+type ConnectionStatus = "OFFLINE" | "CONNECTING" | "ONLINE" | "ERROR";
+
+type NumeroTeste = {
+  id: number;
+  numero: string;
+  created_at: string;
+};
+
+type ConnectionState = {
+  connected: boolean;
+  initialized: boolean;
+  provider: "BAILEYS";
+  qrCode: string | null;
+  status: ConnectionStatus;
+};
+
+const getBotApiUrl = () => {
+  const apiUrl = (process.env.NEXT_PUBLIC_URL || "").replace(/\/$/, "");
+
+  if (!apiUrl) {
+    throw new Error("NEXT_PUBLIC_URL nao configurada.");
+  }
+
+  return apiUrl.endsWith("/bot") ? apiUrl : `${apiUrl}/bot`;
+};
+
+const getUsuarioId = () => {
+  const usuarioId = localStorage.getItem("id_do_usuario");
+
+  if (!usuarioId) {
+    throw new Error("Usuario nao identificado.");
+  }
+
+  return usuarioId;
+};
+
+const getResponseBody = async (response: Response) => {
+  const body = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(body.message || "Erro ao comunicar com a API do bot.");
+  }
+
+  return body;
+};
 
 const useQrCode = () => {
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [conectado, setConectado] = useState<boolean>(false);
+  const [status, setStatus] = useState<ConnectionStatus>("OFFLINE");
+  const [inicializado, setInicializado] = useState(false);
+  const [pairingCode, setPairingCode] = useState<string | null>(null);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
 
-  const getQrCode = async (tipo: string) => {
-    const usuario_id = localStorage.getItem('id_do_usuario');
+  const applyConnectionState = useCallback((state: ConnectionState) => {
+    setConectado(state.connected);
+    setInicializado(state.initialized);
+    setStatus(state.status);
+    setQrCode(state.connected ? null : state.qrCode);
 
-    const { data, error } = await supabase
-      .from('WhatsappInstances')
-      .select('qr_code, status')
-      .eq('cliente_id', usuario_id)
-      .eq('provider', tipo.toUpperCase())
-      .single();
-
-    if (!data) {
-      await verificarConexao();
-      return;
+    if (state.connected) {
+      setPairingCode(null);
     }
+  }, []);
 
-    if (error) {
-      console.error('Erro ao buscar QR Code:', error);
-      return;
+  const getQrCode = useCallback(async () => {
+    try {
+      const usuarioId = getUsuarioId();
+      const response = await fetch(`${getBotApiUrl()}/qrcode/${usuarioId}`, {
+        cache: "no-store"
+      });
+      const data = await getResponseBody(response) as ConnectionState;
+
+      applyConnectionState(data);
+      setConnectionError(null);
+      return data;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Erro ao consultar conexao.";
+      setConnectionError(message);
+      console.error("Erro ao buscar QR Code na API:", error);
+      return null;
     }
+  }, [applyConnectionState]);
 
-    const qr_code = data?.qr_code || null;
-    const test = data.status == "ONLINE" ? true : false
-    setConectado(test);
-    setQrCode(qr_code);
+  const conectar = useCallback(async () => {
+    try {
+      const usuarioId = getUsuarioId();
+      const response = await fetch(`${getBotApiUrl()}/start/${usuarioId}`);
+      await getResponseBody(response);
+      setInicializado(true);
+      setStatus("CONNECTING");
+      setConnectionError(null);
+      return true;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Erro ao iniciar conexao.";
+      setConnectionError(message);
+      console.error("Erro ao iniciar conexao do WhatsApp:", error);
+      return false;
+    }
+  }, []);
+
+  const desconectar = useCallback(async () => {
+    toast.info("Desconectando, aguarde um momento...");
+
+    try {
+      const usuarioId = getUsuarioId();
+      const response = await fetch(`${getBotApiUrl()}/disconnect/${usuarioId}`);
+      const data = await getResponseBody(response);
+
+      setConectado(false);
+      setInicializado(false);
+      setStatus("OFFLINE");
+      setQrCode(null);
+      setPairingCode(null);
+      setConnectionError(null);
+      toast.success(data.message);
+      return true;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Erro ao desconectar.";
+      setConnectionError(message);
+      toast.error(message);
+      return false;
+    }
+  }, []);
+
+  const gerarCodigoPareamento = useCallback(async (phoneNumber: string) => {
+    try {
+      const usuarioId = getUsuarioId();
+      const response = await fetch(`${getBotApiUrl()}/pairing-code/${usuarioId}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ phoneNumber })
+      });
+      const data = await getResponseBody(response);
+
+      setPairingCode(data.pairingCode);
+      setInicializado(true);
+      setStatus("CONNECTING");
+      setConnectionError(null);
+      return data.pairingCode as string;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Erro ao gerar codigo.";
+      setConnectionError(message);
+      toast.error(message);
+      return null;
+    }
+  }, []);
+
+  return {
+    conectado,
+    conectar,
+    connectionError,
+    desconectar,
+    gerarCodigoPareamento,
+    getQrCode,
+    inicializado,
+    pairingCode,
+    qrCode,
+    status
   };
-
-  const verificarConexao = async () => {
-    const usuario_id = localStorage.getItem('id_do_usuario');
-
-    const { data, error } = await supabase
-      .from('WhatsappInstances')
-      .select('qr_code')
-      .eq('cliente_id', usuario_id)
-      .eq('status', 'ONLINE')
-      .single();
-
-    if (error) {
-      console.error('Erro ao verificar conexao:', error);
-      return;
-    }
-
-    setConectado(!!data);
-  }
-
-  return { qrCode, conectado, getQrCode };
-}
-
-const desconectar = async () => {
-  toast.info("Desconectando, aguarde um momento...");
-  const usuario_id = localStorage.getItem('id_do_usuario');
-
-  const res = await fetch(`${process.env.NEXT_PUBLIC_URL}/disconnect/${usuario_id}`);
-  const response = await res.json();
-  if (!res.ok) {
-    toast.error("Erro ao desconectar!");
-    return;
-  }
-
-  toast.success(response.message);
-}
-
-const conectar = async () => {
-  const usuario_id = localStorage.getItem('id_do_usuario');
-
-  const res = await fetch(`${process.env.NEXT_PUBLIC_URL}/start/${usuario_id}`);
-  const response = await res.json();
-  if (!res.ok) {
-    toast.error("Erro ao solicitar nova conexao!");
-    return;
-  }
-
-  toast.success(response.message);
 }
 
 const pegarHistorico = async (lead_id: number) => {
@@ -156,6 +242,105 @@ const getIaAtividade = async () => {
   return data?.ia_ativa || false;
 }
 
+const getModoTeste = async () => {
+  try {
+    const usuarioId = getUsuarioId();
+    const response = await fetch(`${getBotApiUrl()}/test-mode/${usuarioId}`, {
+      cache: "no-store"
+    });
+    const data = await getResponseBody(response);
+
+    return Boolean(data.enabled);
+  } catch (error) {
+    console.error("Erro ao buscar modo teste:", error);
+    toast.error("Erro ao carregar o modo teste");
+    return false;
+  }
+};
+
+const atualizarModoTeste = async (ativo: boolean) => {
+  try {
+    const usuarioId = getUsuarioId();
+    const response = await fetch(`${getBotApiUrl()}/test-mode/${usuarioId}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ enabled: ativo })
+    });
+    await getResponseBody(response);
+
+    toast.success(ativo ? "Modo teste ativado" : "Modo teste desativado");
+    return true;
+  } catch (error) {
+    console.error("Erro ao atualizar modo teste:", error);
+    toast.error(error instanceof Error ? error.message : "Erro ao atualizar o modo teste");
+    return false;
+  }
+};
+
+const listarNumerosTeste = async (): Promise<NumeroTeste[]> => {
+  try {
+    const usuarioId = getUsuarioId();
+    const response = await fetch(`${getBotApiUrl()}/test-numbers/${usuarioId}`, {
+      cache: "no-store"
+    });
+    const data = await getResponseBody(response);
+
+    return (data.numbers || []) as NumeroTeste[];
+  } catch (error) {
+    console.error("Erro ao listar numeros de teste:", error);
+    toast.error(error instanceof Error ? error.message : "Erro ao carregar numeros de teste");
+    return [];
+  }
+};
+
+const adicionarNumeroTeste = async (phoneNumber: string) => {
+  const numero = phoneNumber.replace(/\D/g, "");
+
+  if (numero.length < 8 || numero.length > 15) {
+    toast.error("Informe o numero com DDI. Exemplo: 5511999999999");
+    return null;
+  }
+
+  try {
+    const usuarioId = getUsuarioId();
+    const response = await fetch(`${getBotApiUrl()}/test-numbers/${usuarioId}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ phoneNumber: numero })
+    });
+    const data = await getResponseBody(response);
+
+    toast.success("Numero de teste adicionado");
+    return data.number as NumeroTeste;
+  } catch (error) {
+    console.error("Erro ao adicionar numero de teste:", error);
+    toast.error(error instanceof Error ? error.message : "Erro ao cadastrar numero de teste");
+    return null;
+  }
+};
+
+const removerNumeroTeste = async (id: number) => {
+  try {
+    const usuarioId = getUsuarioId();
+    const response = await fetch(
+      `${getBotApiUrl()}/test-numbers/${usuarioId}/${id}`,
+      { method: "DELETE" }
+    );
+    await getResponseBody(response);
+
+    toast.success("Numero de teste removido");
+    return true;
+  } catch (error) {
+    console.error("Erro ao remover numero de teste:", error);
+    toast.error(error instanceof Error ? error.message : "Erro ao remover numero de teste");
+    return false;
+  }
+};
+
 export {
   useQrCode,
   pegarHistorico,
@@ -163,6 +348,10 @@ export {
   atualizarPrompt,
   getIaAtividade,
   atualizarAtividadeIa,
-  desconectar,
-  conectar
+  adicionarNumeroTeste,
+  atualizarModoTeste,
+  getModoTeste,
+  listarNumerosTeste,
+  removerNumeroTeste,
+  type NumeroTeste,
 };
