@@ -1,5 +1,5 @@
 //* Controller Imports
-import { disconnect, start, getQrCode, pairingCode } from "../controllers/bot.controller";
+import { disconnect, getQrCode, pairingCode, start } from "../controllers/bot.controller";
 
 //* Library Imports
 import { Router } from "express";

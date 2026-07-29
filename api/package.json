@@ -21,7 +21,9 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "start": "tsx src/server.ts",
-    "test:calculations": "tsx --test src/funcs/calculations.test.ts"
+    "test": "tsx --test src/funcs/calculations.test.ts src/funcs/test-mode.test.ts",
+    "test:calculations": "tsx --test src/funcs/calculations.test.ts",
+    "test:test-mode": "tsx --test src/funcs/test-mode.test.ts"
   },
   "keywords": [],
   "author": "",

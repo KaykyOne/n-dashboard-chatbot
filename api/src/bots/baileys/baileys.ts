@@ -224,6 +224,24 @@ async function startBot(usuario: Usuario) {
             return;
         }
 
+        try {
+            const numeroPermitido = await botFuncs.podeReceberMensagem(usuarioId, numero);
+
+            if (!numeroPermitido) {
+                botLogger.info(
+                    { numero },
+                    "Mensagem ignorada: numero nao autorizado pelo modo teste"
+                );
+                return;
+            }
+        } catch (err) {
+            botLogger.error(
+                { err, numero },
+                "Mensagem bloqueada: nao foi possivel validar o modo teste"
+            );
+            return;
+        }
+
         // if (
         //     numero.includes("5517997437646") ||
         //     numero.includes("5567981368080") ||

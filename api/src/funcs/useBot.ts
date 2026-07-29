@@ -7,7 +7,7 @@ import chatgpt from './chatgpt.js';
 import fs from 'fs';
 import { runCalculationAgent } from './ai-calculator-agent.js';
 
-const { getAtividade } = useUsuario();
+const { getAtividade, podeReceberMensagem } = useUsuario();
 
 async function organizerUsuarios() {
   const usuariosAtuais = await prisma.usuarios.findMany({
@@ -259,6 +259,7 @@ export default function useBot() {
   return {
     responderPergunta,
     getAtividade,
+    podeReceberMensagem,
     converterAudioEmTexto,
     mudarAtividadeIA,
     getLead,

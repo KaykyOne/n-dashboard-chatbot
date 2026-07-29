@@ -1,5 +1,8 @@
-import fs from 'fs/promises';
 import prisma from '../../prisma/prisma.js';
+import {
+    isTestMessageAllowed,
+    normalizeTestPhoneNumber
+} from './test-mode.js';
 
 export default function useUsuario() {
     async function getAtividade(usuario_id?: number, telefone?: string, lead_id?: number) {
@@ -41,8 +44,33 @@ export default function useUsuario() {
         return users;
     }
 
+    async function podeReceberMensagem(usuarioId: number, telefone: string) {
+        const numero = normalizeTestPhoneNumber(telefone);
+        const configuracao = await prisma.usuarios.findUnique({
+            where: { id: usuarioId },
+            select: {
+                modo_teste: true,
+                numerosTeste: {
+                    where: { numero },
+                    select: { id: true },
+                    take: 1
+                }
+            }
+        });
+
+        if (!configuracao) {
+            return false;
+        }
+
+        return isTestMessageAllowed(
+            configuracao.modo_teste,
+            configuracao.numerosTeste.length > 0
+        );
+    }
+
     return {
         getAtividade,
-        getAllUsers
+        getAllUsers,
+        podeReceberMensagem
     };
 }

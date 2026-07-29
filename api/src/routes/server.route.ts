@@ -4,6 +4,7 @@ import cors from "cors";
 
 //* Routers Imports
 import { botRouter } from "./bot.route.js";
+import { testModeRouter } from "./test-mode.route.js";
 
 const serverRouter = express.Router();
 
@@ -12,6 +13,7 @@ serverRouter.use(cors({
 }));
 serverRouter.use(express.json());
 
+serverRouter.use("/bot", testModeRouter);
 serverRouter.use("/bot", botRouter);
 
 serverRouter.get("/status", (_, res) => {

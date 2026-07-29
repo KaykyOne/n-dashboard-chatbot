@@ -95,4 +95,9 @@ async function pairingCode(req: Request, res: Response) {
     }
 }
 
-export { disconnect, start, getQrCode, pairingCode };
+export {
+    disconnect,
+    getQrCode,
+    pairingCode,
+    start
+};

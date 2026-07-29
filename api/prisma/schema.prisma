@@ -39,10 +39,23 @@ model Usuarios {
   limite_atendimentos Int                 @default(0)
   ativo               Boolean             @default(true)
   ia_ativa            Boolean             @default(true)
+  modo_teste          Boolean             @default(false)
   prompt              String?
   whatsappInstances   WhatsappInstances[]
+  numerosTeste        NumerosTeste[]
   leads               Leads[]
   mensagens           Mensagens[]
+}
+
+model NumerosTeste {
+  id         Int      @id @default(autoincrement())
+  cliente    Usuarios @relation(fields: [cliente_id], references: [id], onDelete: Cascade)
+  cliente_id Int
+  numero     String
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  @@unique([cliente_id, numero])
+  @@index([cliente_id])
 }
 
 model WhatsappInstances {
