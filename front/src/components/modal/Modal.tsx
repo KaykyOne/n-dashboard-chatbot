@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react'
 import {
     adicionarNumeroTeste, atualizarModoTeste, atualizarPrompt,
     getIaAtividade, getModoTeste, listarNumerosTeste, pegarPrompt,
-    removerNumeroTeste, useQrCode, atualizarAtividadeIa,
+    melhorarPrompt, removerNumeroTeste, useQrCode, atualizarAtividadeIa,
     type NumeroTeste
 } from '../../hooks/useConfiguracoes'
 import QRCode from 'react-qr-code'
@@ -31,6 +31,8 @@ export default function Modal({ setModalOpen }: ModalProps) {
     } = useQrCode()
     const [promptAntesAtt, setPromptAntesAtt] = useState('')
     const [prompt, setPrompt] = useState('')
+    const [instrucaoMelhoria, setInstrucaoMelhoria] = useState('')
+    const [melhorandoPrompt, setMelhorandoPrompt] = useState(false)
     const [iaAtiva, setIaAtiva] = useState(false)
     const [modoTeste, setModoTeste] = useState(false)
     const [numerosTeste, setNumerosTeste] = useState<NumeroTeste[]>([])
@@ -116,6 +118,24 @@ export default function Modal({ setModalOpen }: ModalProps) {
         await atualizarPrompt(prompt)
         setPromptAntesAtt(prompt)
         setLoading(false)
+    }
+
+    const solicitarMelhoriaPrompt = async () => {
+        if (!prompt.trim()) {
+            toast.error('Escreva o prompt atual antes de pedir uma melhoria.')
+            return
+        }
+
+        setMelhorandoPrompt(true)
+        const promptMelhorado = await melhorarPrompt(prompt, instrucaoMelhoria)
+
+        if (promptMelhorado) {
+            setPrompt(promptMelhorado)
+            setInstrucaoMelhoria('')
+            toast.success('Prompt melhorado. Revise o texto antes de salvar.')
+        }
+
+        setMelhorandoPrompt(false)
     }
 
     const alterarIaAtiva = async (check: boolean) => {
@@ -432,6 +452,52 @@ export default function Modal({ setModalOpen }: ModalProps) {
                             onChange={(e) => setPrompt(e.target.value)}
                             className="min-h-[250px] w-full rounded-2xl border border-white/8 bg-[#171717] p-5 text-sm text-[#f0ede8] outline-none transition duration-200 focus:border-[#c96442]"
                         />
+
+                        <div className="space-y-3 rounded-2xl border border-white/8 bg-[#171717] p-4">
+                            <div className="flex items-center gap-2 text-xs text-[#a09d98]">
+                                <span className="material-symbols-outlined text-base text-[#c96442]">
+                                    auto_awesome
+                                </span>
+                                Diga o que voce quer melhorar
+                            </div>
+
+                            <div className="space-y-3">
+                                <textarea
+                                    value={instrucaoMelhoria}
+                                    onChange={(event) => setInstrucaoMelhoria(event.target.value)}
+                                    placeholder="Ex.: deixe mais claro, organize as regras e melhore o tom comercial"
+                                    className="min-h-[180px] w-full resize-y rounded-2xl border border-white/8 bg-[#121212] p-5 text-sm leading-relaxed text-[#f0ede8] outline-none transition duration-200 placeholder:text-[#5a5754] focus:border-[#c96442]"
+                                />
+
+                                <div className="flex justify-end">
+                                    <button
+                                        type="button"
+                                        onClick={() => void solicitarMelhoriaPrompt()}
+                                        disabled={melhorandoPrompt || !prompt.trim()}
+                                        className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#f0ede8] px-5 py-3 text-sm font-medium text-[#171717] transition duration-200 hover:bg-white disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+                                        aria-label="Melhorar prompt com inteligencia artificial"
+                                    >
+                                        {melhorandoPrompt ? (
+                                            <>
+                                                <span className="h-4 w-4 animate-spin rounded-full border-2 border-[#171717]/30 border-t-[#171717]" />
+                                                Melhorando...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <span className="material-symbols-outlined text-lg">
+                                                    auto_awesome
+                                                </span>
+                                                Melhorar com IA
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+                            </div>
+
+                            <p className="text-xs leading-relaxed text-[#5a5754]">
+                                A melhoria substitui apenas o texto acima. Revise o resultado e clique em salvar alteracoes para aplicar.
+                            </p>
+                        </div>
 
                         {prompt !== promptAntesAtt && (
                             <button

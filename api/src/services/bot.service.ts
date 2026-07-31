@@ -1,6 +1,6 @@
-import fs from "fs";
 import { defaultProvider, getProviderAdapter } from "../bots/providers.js";
-import { serverEnv } from "../env.js";
+import { removeBaileysSessionDirectory } from "../funcs/baileys-session.js";
+import useMensagem from "../funcs/useMensagem.js";
 import type { Usuario } from "../types/usuario.js";
 import { createLogger } from "../utils/logger.js";
 
@@ -25,12 +25,14 @@ async function removeProviderSessions(id: number) {
     const adapter = getProviderAdapter();
 
     for (const sessionPath of adapter.getSessionPaths(id)) {
-        if (!fs.existsSync(sessionPath)) {
-            continue;
-        }
+        const removed = removeBaileysSessionDirectory(id, sessionPath);
 
-        fs.rmSync(sessionPath, { recursive: true, force: true });
-        logger.info({ usuarioId: id, provider: defaultProvider, sessionPath }, "Sessao do provider removida");
+        if (removed) {
+            logger.info(
+                { usuarioId: id, provider: defaultProvider, sessionPath },
+                "Sessao do provider removida"
+            );
+        }
     }
 }
 
@@ -38,10 +40,14 @@ async function disconnectRegisteredUser(user: Usuario, options?: DisconnectBotOp
     const adapter = getProviderAdapter();
 
     logger.info({ usuarioId: user.id, provider: user.provider }, "Iniciando desconexao do usuario");
-    await adapter.disconnect(user);
+    await adapter.disconnect(user, { logout: options?.resetSession });
 
     if (options?.resetSession) {
         await removeProviderSessions(user.id);
+        await useMensagem().desativarBotPermanentemente(
+            user.id,
+            user.provider
+        );
     }
 
     usuarios = usuarios.filter((usuario) => usuario.id !== user.id);
@@ -95,12 +101,6 @@ async function initializeBot(id: number) {
 }
 
 async function startBot(id: number) {
-    // if (serverEnv.BOT_USER_ID && id !== serverEnv.BOT_USER_ID) {
-    //     throw new Error(
-    //         `Bot restrito ao usuario ${serverEnv.BOT_USER_ID} neste ambiente.`
-    //     );
-    // }
-
     const existente = usuarios.find((usuario) => usuario.id === id);
 
     if (existente && (existente.cliente || existente.status !== "OFFLINE")) {

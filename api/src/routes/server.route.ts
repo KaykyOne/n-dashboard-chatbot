@@ -4,6 +4,7 @@ import cors from "cors";
 
 //* Routers Imports
 import { botRouter } from "./bot.route.js";
+import { promptImprovementRouter } from "./prompt-improvement.route.js";
 import { testModeRouter } from "./test-mode.route.js";
 import { serverEnv } from "../env.js";
 
@@ -15,6 +16,7 @@ serverRouter.use(cors({
 serverRouter.use(express.json());
 
 serverRouter.use("/bot", testModeRouter);
+serverRouter.use("/bot", promptImprovementRouter);
 serverRouter.use("/bot", botRouter);
 
 serverRouter.get("/status", (_, res) => {

@@ -1,5 +1,4 @@
 import prisma from '../../prisma/prisma.js';
-import { serverEnv } from '../env.js';
 import {
     isTestMessageAllowed,
     normalizeTestPhoneNumber
@@ -38,7 +37,6 @@ export default function useUsuario() {
     async function getAllUsers() {
         const users = await prisma.usuarios.findMany({
             where: {
-                id: serverEnv.BOT_USER_ID,
                 ia_ativa: true,
                 ativo: true
             }

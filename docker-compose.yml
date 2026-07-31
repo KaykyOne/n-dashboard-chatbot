@@ -1,50 +1,27 @@
 services:
-  # Dashboard Next.js
   dashboard:
     build:
-      context: ./dashboard
+      context: ./front
       dockerfile: Dockerfile
-    container_name: dashboard-app
+    container_name: botchat-dashboard
     ports:
       - "3000:3000"
     env_file:
-      - ./dashboard/.env
-    restart: unless-stopped
-    networks:
-      - app-network
-
-  # Bot Express
-  bot:
-    build:
-      context: ./bot
-      dockerfile: Dockerfile
-    container_name: bot-app
-    ports:
-      - "5000:5000"
-    env_file:
-      - ./bot/.env
-    restart: unless-stopped
-    networks:
-      - app-network
-    volumes:
-      - ./bot/sessions:/app/sessions
-      - ./bot/prisma/sessions:/app/prisma/sessions
-
-  # Nginx
-  nginx:
-    image: nginx:latest
-    container_name: nginx-reverse-proxy
-    ports:
-      - "8080:80"
-    volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./front/.env
     depends_on:
-      - dashboard
       - bot
     restart: unless-stopped
-    networks:
-      - app-network
 
-networks:
-  app-network:
-    driver: bridge
+  bot:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    container_name: botchat-api
+    ports:
+      - "3002:3002"
+    env_file:
+      - ./api/.env
+    restart: unless-stopped
+    volumes:
+      - ./api/src/bots/baileys/sessions:/app/src/bots/baileys/sessions
+      - ./api/src/bots/baileys/audios:/app/src/bots/baileys/audios

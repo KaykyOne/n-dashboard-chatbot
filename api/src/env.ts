@@ -23,6 +23,10 @@ const envSchema = z.object({
     emptyStringToUndefined,
     z.string().min(1, "OPENAI_KEY is required"),
   ),
+  PROMPT_IMPROVEMENT_MODEL: z.preprocess(
+    emptyStringToUndefined,
+    z.string().min(1).default("gpt-5.5"),
+  ),
   DATABASE_URL: z.preprocess(
     emptyStringToUndefined,
     databaseUrlSchema,
@@ -34,10 +38,6 @@ const envSchema = z.object({
   PORT: z.preprocess(
     emptyStringToUndefined,
     z.coerce.number().int().positive().default(3009),
-  ),
-  BOT_USER_ID: z.preprocess(
-    emptyStringToUndefined,
-    z.coerce.number().int().positive().optional(),
   ),
   BOT_MESSAGE_DEBOUNCE_MS: z.preprocess(
     emptyStringToUndefined,
@@ -54,6 +54,14 @@ const envSchema = z.object({
   BOT_MAX_MESSAGE_AGE_SECONDS: z.preprocess(
     emptyStringToUndefined,
     z.coerce.number().int().positive().default(120),
+  ),
+  WHATSAPP_NOTIFICATION_API_URL: z.preprocess(
+    emptyStringToUndefined,
+    z.string().url().optional(),
+  ),
+  WHATSAPP_NOTIFICATION_API_TOKEN: z.preprocess(
+    emptyStringToUndefined,
+    z.string().min(1).optional(),
   ),
   CORS_ORIGIN: z.preprocess(
     emptyStringToUndefined,
@@ -88,13 +96,20 @@ const serverEnv = parseEnv(
     BOT_MAX_MESSAGE_AGE_SECONDS: true,
     BOT_PART_DELAY_MS: true,
     BOT_TYPING_DELAY_MS: true,
-    BOT_USER_ID: true,
+    WHATSAPP_NOTIFICATION_API_TOKEN: true,
+    WHATSAPP_NOTIFICATION_API_URL: true,
     CORS_ORIGIN: true,
     PORT: true
   }),
   "server",
 );
-const openAiEnv = parseEnv(envSchema.pick({ OPENAI_KEY: true }), "openai");
+const openAiEnv = parseEnv(
+  envSchema.pick({
+    OPENAI_KEY: true,
+    PROMPT_IMPROVEMENT_MODEL: true,
+  }),
+  "openai",
+);
 const databaseEnv = parseEnv(
   envSchema.pick({ DATABASE_URL: true, DIRECT_URL: true }),
   "database",

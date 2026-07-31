@@ -10,17 +10,32 @@ import path from "path";
 import pino from "pino";
 import useBot from "../../funcs/useBot";
 import useMensagem from "../../funcs/useMensagem";
+import {
+    BAILEYS_CONNECTION_STABILITY_MS,
+    MAX_BAILEYS_RECONNECTION_ATTEMPTS,
+    getBotPhoneNumber,
+    getReconnectionDecision
+} from "../../funcs/baileys-reconnection.js";
+import {
+    getBaileysSessionPath,
+    removeBaileysSessionDirectory
+} from "../../funcs/baileys-session.js";
 import { resolvePhoneNumber } from "../../funcs/whatsapp-address.js";
 import { serverEnv } from "../../env.js";
+import { sendWhatsAppApiMessage } from "../../services/whatsapp-notification.service.js";
 import { createLogger } from "../../utils/logger";
 import type { Usuario } from "../../types/usuario";
 
 const mensagensPendentes: Record<string, string> = {};
 const timeouts: Record<string, NodeJS.Timeout> = {};
+const connectionStabilityTimeouts = new Map<number, NodeJS.Timeout>();
 const TEMPO_ESPERA = serverEnv.BOT_MESSAGE_DEBOUNCE_MS;
 const TEMPO_DIGITANDO = serverEnv.BOT_TYPING_DELAY_MS;
 const TEMPO_ENTRE_PARTES = serverEnv.BOT_PART_DELAY_MS;
 const IDADE_MAXIMA_MENSAGEM = serverEnv.BOT_MAX_MESSAGE_AGE_SECONDS;
+const RECONNECTION_FAILURE_MESSAGE =
+    "O WhatsApp deste bot foi desconectado automaticamente apos 5 tentativas de reconexao sem sucesso.";
+const BAILEYS_LOGOUT_TIMEOUT_MS = 5_000;
 
 const { version } = await fetchLatestBaileysVersion();
 
@@ -34,7 +49,74 @@ function juntarMensagens(numero: string, texto: string) {
     }
 }
 
-const testTentativasDeReconexao = (tentativa: number) => tentativa <= 5;
+function clearPendingMessagesForUser(usuarioId: number) {
+    const queuePrefix = `${usuarioId}:`;
+
+    Object.keys(timeouts)
+        .filter((queueKey) => queueKey.startsWith(queuePrefix))
+        .forEach((queueKey) => {
+            clearTimeout(timeouts[queueKey]);
+            delete timeouts[queueKey];
+        });
+
+    Object.keys(mensagensPendentes)
+        .filter((queueKey) => queueKey.startsWith(queuePrefix))
+        .forEach((queueKey) => {
+            delete mensagensPendentes[queueKey];
+        });
+}
+
+function clearConnectionStabilityTimeout(usuarioId: number) {
+    const stabilityTimeout = connectionStabilityTimeouts.get(usuarioId);
+
+    if (stabilityTimeout) {
+        clearTimeout(stabilityTimeout);
+        connectionStabilityTimeouts.delete(usuarioId);
+    }
+}
+
+async function closeBaileysSocket(
+    sock: WASocket,
+    requestLogout: boolean,
+    botLogger: ReturnType<typeof createLogger>
+) {
+    (sock.ev as any).removeAllListeners();
+    let logoutSucceeded = false;
+
+    if (requestLogout) {
+        let logoutTimeout: NodeJS.Timeout | undefined;
+
+        try {
+            await Promise.race([
+                sock.logout(
+                    "Sessao encerrada apos limite de falhas de reconexao"
+                ),
+                new Promise<never>((_, reject) => {
+                    logoutTimeout = setTimeout(
+                        () => reject(new Error("Timeout ao desconectar do WhatsApp.")),
+                        BAILEYS_LOGOUT_TIMEOUT_MS
+                    );
+                })
+            ]);
+            logoutSucceeded = true;
+        } catch (err) {
+            botLogger.warn(
+                { err },
+                "Logout remoto nao foi confirmado; encerrando socket local"
+            );
+        } finally {
+            if (logoutTimeout) {
+                clearTimeout(logoutTimeout);
+            }
+        }
+    }
+
+    await sock.end(undefined).catch((err) => {
+        botLogger.debug({ err }, "Socket ja estava encerrado");
+    });
+
+    return logoutSucceeded;
+}
 
 async function baixarAudio(msg: any, caminho: string) {
     if (!msg.message?.audioMessage && !msg.message?.ptt) return null;
@@ -74,7 +156,7 @@ async function startBot(usuario: Usuario) {
     }
 
     const usuarioId = usuario.id;
-    const authPath = `./src/bots/baileys/sessions/bot-baileys-${usuarioId}`;
+    const authPath = getBaileysSessionPath(usuarioId);
     const botLogger = baseLogger.child({ usuarioId, authPath });
     const { state, saveCreds } = await useMultiFileAuthState(authPath);
     const funcoes = useMensagem();
@@ -95,6 +177,14 @@ async function startBot(usuario: Usuario) {
     sock.ev.on("connection.update", async (update) => {
         const { connection, lastDisconnect, qr } = update;
 
+        if (usuario.cliente !== sock) {
+            botLogger.debug(
+                { connection },
+                "Evento ignorado: socket antigo nao e mais o cliente ativo"
+            );
+            return;
+        }
+
         if (qr) {
             usuario.qrCode = qr;
             usuario.ativado = true;
@@ -106,56 +196,158 @@ async function startBot(usuario: Usuario) {
         }
 
         if (connection === "open") {
-            usuario.tentativasReconexao = 0;
             usuario.ativado = true;
             usuario.status = "ONLINE";
             usuario.qrCode = null;
+            clearConnectionStabilityTimeout(usuarioId);
+            connectionStabilityTimeouts.set(
+                usuarioId,
+                setTimeout(() => {
+                    connectionStabilityTimeouts.delete(usuarioId);
+
+                    if (
+                        usuario.cliente !== sock
+                        || usuario.status !== "ONLINE"
+                        || !usuario.ativado
+                    ) {
+                        return;
+                    }
+
+                    usuario.tentativasReconexao = 0;
+                    botLogger.info(
+                        { stabilityMs: BAILEYS_CONNECTION_STABILITY_MS },
+                        "Conexao permaneceu estavel; contador de reconexoes zerado"
+                    );
+                }, BAILEYS_CONNECTION_STABILITY_MS)
+            );
             await funcoes.atualizarConecao(usuarioId, "ONLINE", "BAILEYS").catch((err) => {
                 botLogger.warn({ err }, "Nao foi possivel persistir o status online");
             });
-            botLogger.info("Cliente online");
+            botLogger.info(
+                {
+                    tentativaAtual: usuario.tentativasReconexao ?? 0,
+                    stabilityMs: BAILEYS_CONNECTION_STABILITY_MS
+                },
+                "Cliente online aguardando janela de estabilidade"
+            );
         }
 
         if (connection === "close") {
+            clearConnectionStabilityTimeout(usuarioId);
             const statusCode = (lastDisconnect?.error as any)?.output?.statusCode;
             const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+            const reconnectDecision = getReconnectionDecision(
+                usuario.tentativasReconexao,
+                shouldReconnect,
+                usuario.ativado
+            );
 
             usuario.cliente = null;
             usuario.qrCode = null;
             usuario.status = "OFFLINE";
+            (sock.ev as any).removeAllListeners();
             await funcoes.atualizarConecao(usuarioId, "OFFLINE", "BAILEYS").catch((err) => {
                 botLogger.warn({ err }, "Nao foi possivel persistir o status offline");
             });
             botLogger.warn({ statusCode, shouldReconnect }, "Cliente desconectado");
 
-            if (!usuario.ativado || !shouldReconnect) {
+            if (reconnectDecision.action === "stop") {
                 return;
             }
 
-            if (usuario.tentativasReconexao) {
-                usuario.tentativasReconexao += 1;
+            if (reconnectDecision.action === "notify-and-disconnect") {
+                usuario.ativado = false;
+                usuario.tentativasReconexao =
+                    MAX_BAILEYS_RECONNECTION_ATTEMPTS;
+                clearConnectionStabilityTimeout(usuarioId);
+                clearPendingMessagesForUser(usuarioId);
 
-                if (!testTentativasDeReconexao(usuario.tentativasReconexao)) {
+                const botPhone = getBotPhoneNumber(
+                    sock.user?.id,
+                    state.creds.me?.id
+                );
+                const desativadoAgora = await funcoes
+                    .desativarBotPermanentemente(usuarioId, "BAILEYS")
+                    .catch((err) => {
+                        botLogger.error(
+                            { err },
+                            "Falha ao persistir desligamento permanente"
+                        );
+                        return true;
+                    });
+                const logoutSucceeded = await closeBaileysSocket(
+                    sock,
+                    true,
+                    botLogger
+                );
+                let sessionRemoved = false;
+
+                try {
+                    sessionRemoved = removeBaileysSessionDirectory(
+                        usuarioId,
+                        authPath
+                    );
+                } catch (err) {
                     botLogger.error(
-                        { tentativa: usuario.tentativasReconexao },
-                        "Limite de reconexoes atingido"
+                        { err, authPath },
+                        "Falha ao remover pasta de sessao do Baileys"
+                    );
+                }
+
+                botLogger.error(
+                    {
+                        logoutSucceeded,
+                        sessionRemoved,
+                        tentativas: reconnectDecision.completedAttempts
+                    },
+                    "Limite de reconexoes atingido; sessao removida e cliente desativado"
+                );
+
+                if (!desativadoAgora) {
+                    botLogger.info(
+                        "Alerta ignorado: outro processo ja concluiu o desligamento"
                     );
                     return;
                 }
 
-                botLogger.warn(
-                    { tentativa: usuario.tentativasReconexao },
-                    "Tentando reconectar cliente"
-                );
-                usuario.status = "CONNECTING";
-                startBot(usuario);
+                if (!botPhone) {
+                    botLogger.error(
+                        "Nao foi possivel identificar o numero do bot para enviar o alerta"
+                    );
+                    return;
+                }
+
+                await sendWhatsAppApiMessage({
+                    text: RECONNECTION_FAILURE_MESSAGE,
+                    phone: botPhone
+                }).then(() => {
+                    botLogger.info(
+                        { phoneSuffix: botPhone.slice(-4) },
+                        "Alerta de falha de reconexao enviado"
+                    );
+                }).catch((err) => {
+                    botLogger.error(
+                        { err, phoneSuffix: botPhone.slice(-4) },
+                        "Falha ao enviar alerta de reconexao"
+                    );
+                });
                 return;
             }
 
-            usuario.tentativasReconexao = 1;
+            usuario.tentativasReconexao = reconnectDecision.attempt;
             usuario.status = "CONNECTING";
-            botLogger.warn({ tentativa: usuario.tentativasReconexao }, "Primeira tentativa de reconexao");
-            startBot(usuario);
+            botLogger.warn(
+                { tentativa: reconnectDecision.attempt },
+                reconnectDecision.attempt === 1
+                    ? "Primeira tentativa de reconexao pelo fluxo padrao do Baileys"
+                    : "Tentando reconectar cliente"
+            );
+            void startBot(usuario).catch((err) => {
+                botLogger.error(
+                    { err, tentativa: reconnectDecision.attempt },
+                    "Falha ao preparar tentativa de reconexao"
+                );
+            });
         }
     });
 
@@ -369,8 +561,11 @@ async function startBot(usuario: Usuario) {
     return usuario;
 }
 
-async function disconnectBot(usuario: Usuario) {
-    if (!usuario || !usuario.cliente) return;
+async function disconnectBot(
+    usuario: Usuario,
+    options?: { logout?: boolean }
+) {
+    if (!usuario) return;
 
     const botLogger = createLogger({
         module: "baileys",
@@ -379,26 +574,23 @@ async function disconnectBot(usuario: Usuario) {
     });
 
     try {
-        const sock = usuario.cliente as WASocket;
+        const sock = usuario.cliente as WASocket | null;
 
-        if (!("ev" in sock)) {
+        if (!sock || !("ev" in sock)) {
             botLogger.warn("Socket nao e uma instancia valida de WASocket");
+            usuario.ativado = false;
+            usuario.cliente = null;
+            usuario.qrCode = null;
+            usuario.status = "OFFLINE";
             return;
         }
 
         usuario.ativado = false;
+        clearConnectionStabilityTimeout(usuario.id);
 
-        Object.keys(timeouts).forEach((numero) => {
-            clearTimeout(timeouts[numero]);
-            delete timeouts[numero];
-        });
+        clearPendingMessagesForUser(usuario.id);
 
-        Object.keys(mensagensPendentes).forEach((numero) => {
-            delete mensagensPendentes[numero];
-        });
-
-        (sock.ev as any).removeAllListeners();
-        sock.end(undefined);
+        await closeBaileysSocket(sock, Boolean(options?.logout), botLogger);
 
         usuario.cliente = null;
         usuario.qrCode = null;

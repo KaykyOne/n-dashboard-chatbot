@@ -214,6 +214,37 @@ const atualizarPrompt = async (prompt: string) => {
   return data;
 }
 
+const melhorarPrompt = async (prompt: string, instructions: string) => {
+  try {
+    const usuarioId = getUsuarioId();
+    const response = await fetch(
+      `${getBotApiUrl()}/improve-prompt/${usuarioId}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ prompt, instructions })
+      }
+    );
+    const data = await getResponseBody(response);
+
+    if (typeof data.improvedPrompt !== "string" || !data.improvedPrompt.trim()) {
+      throw new Error("A API nao retornou um prompt melhorado.");
+    }
+
+    return data.improvedPrompt as string;
+  } catch (error) {
+    console.error("Erro ao melhorar prompt:", error);
+    toast.error(
+      error instanceof Error
+        ? error.message
+        : "Nao foi possivel melhorar o prompt"
+    );
+    return null;
+  }
+};
+
 const atualizarAtividadeIa = async (ativo: boolean) => {
   const usuario_id = localStorage.getItem('id_do_usuario');
 
@@ -346,6 +377,7 @@ export {
   pegarHistorico,
   pegarPrompt,
   atualizarPrompt,
+  melhorarPrompt,
   getIaAtividade,
   atualizarAtividadeIa,
   adicionarNumeroTeste,

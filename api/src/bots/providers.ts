@@ -6,7 +6,10 @@ import { disconnectBot as disconnectBaileys, startBot as startBaileys } from "./
 type BotProviderAdapter = {
     provider: WhatsAppProvider;
     start: (usuario: Usuario) => Promise<Usuario | void>;
-    disconnect: (usuario: Usuario) => Promise<void>;
+    disconnect: (
+        usuario: Usuario,
+        options?: { logout?: boolean }
+    ) => Promise<void>;
     getSessionPaths: (usuarioId: number) => string[];
 };
 

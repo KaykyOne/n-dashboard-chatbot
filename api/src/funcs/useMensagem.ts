@@ -50,6 +50,45 @@ export default function useMensagem() {
         logger.info({ usuarioId: id_usuario, provider, status }, "Status da conexao atualizado");
     }
 
+    async function desativarBotPermanentemente(
+        usuarioId: number,
+        provider: WhatsAppProvider
+    ) {
+        const [usuarioAtualizado] = await prisma.$transaction([
+            prisma.usuarios.updateMany({
+                where: {
+                    id: usuarioId,
+                    ia_ativa: true
+                },
+                data: {
+                    ia_ativa: false
+                }
+            }),
+            prisma.whatsappInstances.updateMany({
+                where: {
+                    cliente_id: usuarioId,
+                    provider
+                },
+                data: {
+                    qr_code: null,
+                    session_path: null,
+                    status: "ERROR"
+                }
+            })
+        ]);
+
+        logger.warn(
+            {
+                usuarioId,
+                provider,
+                desativadoAgora: usuarioAtualizado.count > 0
+            },
+            "Bot desativado permanentemente apos falhas de reconexao"
+        );
+
+        return usuarioAtualizado.count > 0;
+    }
+
     async function testMensagem(msg: any, numero: string, client: any) {
         if (numero === "status@broadcast" || numero.endsWith("@g.us")) return false;
         if (msg.fromMe || msg.key?.fromMe) return false;
@@ -87,6 +126,7 @@ export default function useMensagem() {
     return {
         atualizarQrCode,
         atualizarConecao,
+        desativarBotPermanentemente,
         testMensagem,
         marcarEnviada,
         buscarMensagensPendentes
