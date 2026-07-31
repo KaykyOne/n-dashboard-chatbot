@@ -13,17 +13,12 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.54.0",
     "date-fns": "^4.1.0",
-    "dotenv": "^17.2.1",
     "framer-motion": "^12.23.21",
-    "next": "15.4.5",
+    "next": "^15.5.22",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-qr-code": "^2.0.18",
-    "react-toastify": "^11.0.5",
-    "resize-observer-polyfill": "^1.5.1",
-    "serve": "^14.2.4",
-    "simplebar": "^6.3.2",
-    "tailwind-scrollbar-hide": "^4.0.0"
+    "react-toastify": "^11.0.5"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
@@ -31,7 +26,7 @@
     "@types/node": "^25.0.3",
     "@types/react": "19.2.7",
     "eslint": "^9",
-    "eslint-config-next": "15.4.5",
+    "eslint-config-next": "^15.5.22",
     "tailwindcss": "^4",
     "typescript": "^5.9.3"
   }

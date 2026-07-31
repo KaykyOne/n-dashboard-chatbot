@@ -14,7 +14,10 @@ import type {
   NewAdmUserPayload,
 } from './_components/types'
 
-const BOT_API_URL = (process.env.NEXT_PUBLIC_URL || '').replace(/\/$/, '')
+const BOT_API_BASE_URL = (process.env.NEXT_PUBLIC_URL || '').replace(/\/$/, '')
+const BOT_API_URL = BOT_API_BASE_URL
+  ? (BOT_API_BASE_URL.endsWith('/bot') ? BOT_API_BASE_URL : `${BOT_API_BASE_URL}/bot`)
+  : ''
 
 export default function Page() {
   const [users, setUsers] = useState<AdmUser[]>([])
@@ -124,13 +127,13 @@ export default function Page() {
 
     try {
       setRefreshing(true)
-      const response = await fetch(`${BOT_API_URL}/start-bot`)
+      const response = await fetch(`${BOT_API_URL}/start-all`)
 
       if (!response.ok) {
-        throw new Error('Falha ao iniciar a rotina global')
+        throw new Error('Falha ao iniciar os bots configurados')
       }
 
-      toast.success('Rotina global do bot iniciada')
+      toast.success('Rotina dos bots iniciada')
       await loadAdminData()
     } catch (error) {
       console.error(error)
@@ -145,9 +148,6 @@ export default function Page() {
       toast.error('NEXT_PUBLIC_URL nao configurada')
       return
     }
-
-    const primaryInstance = instancesByUser[user.id]?.[0]
-    const provider = primaryInstance?.provider ? `?provider=${primaryInstance.provider}` : ''
 
     try {
       setBusyUserId(user.id)
