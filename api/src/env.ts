@@ -35,6 +35,30 @@ const envSchema = z.object({
     emptyStringToUndefined,
     z.coerce.number().int().positive().default(3009),
   ),
+  BOT_USER_ID: z.preprocess(
+    emptyStringToUndefined,
+    z.coerce.number().int().positive().optional(),
+  ),
+  BOT_MESSAGE_DEBOUNCE_MS: z.preprocess(
+    emptyStringToUndefined,
+    z.coerce.number().int().nonnegative().default(3000),
+  ),
+  BOT_TYPING_DELAY_MS: z.preprocess(
+    emptyStringToUndefined,
+    z.coerce.number().int().nonnegative().default(1200),
+  ),
+  BOT_PART_DELAY_MS: z.preprocess(
+    emptyStringToUndefined,
+    z.coerce.number().int().nonnegative().default(800),
+  ),
+  BOT_MAX_MESSAGE_AGE_SECONDS: z.preprocess(
+    emptyStringToUndefined,
+    z.coerce.number().int().positive().default(120),
+  ),
+  CORS_ORIGIN: z.preprocess(
+    emptyStringToUndefined,
+    z.string().url().default("http://localhost:3000"),
+  ),
 });
 
 const formatIssues = (scope: string, issues: z.ZodIssue[]) => {
@@ -59,7 +83,15 @@ const parseEnv = <TSchema extends z.ZodTypeAny>(
 };
 
 const serverEnv = parseEnv(
-  envSchema.pick({ PORT: true }),
+  envSchema.pick({
+    BOT_MESSAGE_DEBOUNCE_MS: true,
+    BOT_MAX_MESSAGE_AGE_SECONDS: true,
+    BOT_PART_DELAY_MS: true,
+    BOT_TYPING_DELAY_MS: true,
+    BOT_USER_ID: true,
+    CORS_ORIGIN: true,
+    PORT: true
+  }),
   "server",
 );
 const openAiEnv = parseEnv(envSchema.pick({ OPENAI_KEY: true }), "openai");

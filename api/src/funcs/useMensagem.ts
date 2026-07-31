@@ -29,7 +29,10 @@ export default function useMensagem() {
 
         await prisma.whatsappInstances.updateMany({
             where: { cliente_id: usuario_id, provider },
-            data: { qr_code: qr }
+            data: {
+                qr_code: qr,
+                status: "CONNECTING"
+            }
         });
 
         scopedLogger.info({ qrLength: qr.length }, "QR code atualizado");
@@ -38,7 +41,10 @@ export default function useMensagem() {
     async function atualizarConecao(id_usuario: number, status: InstanceStatus, provider: WhatsAppProvider) {
         await prisma.whatsappInstances.updateMany({
             where: { cliente_id: id_usuario, provider },
-            data: { status }
+            data: {
+                status,
+                ...(status === "ONLINE" ? { qr_code: null } : {})
+            }
         });
 
         logger.info({ usuarioId: id_usuario, provider, status }, "Status da conexao atualizado");

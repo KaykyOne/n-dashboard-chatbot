@@ -10,12 +10,17 @@ import path from "path";
 import pino from "pino";
 import useBot from "../../funcs/useBot";
 import useMensagem from "../../funcs/useMensagem";
+import { resolvePhoneNumber } from "../../funcs/whatsapp-address.js";
+import { serverEnv } from "../../env.js";
 import { createLogger } from "../../utils/logger";
 import type { Usuario } from "../../types/usuario";
 
 const mensagensPendentes: Record<string, string> = {};
 const timeouts: Record<string, NodeJS.Timeout> = {};
-const TEMPO_ESPERA = 15000;
+const TEMPO_ESPERA = serverEnv.BOT_MESSAGE_DEBOUNCE_MS;
+const TEMPO_DIGITANDO = serverEnv.BOT_TYPING_DELAY_MS;
+const TEMPO_ENTRE_PARTES = serverEnv.BOT_PART_DELAY_MS;
+const IDADE_MAXIMA_MENSAGEM = serverEnv.BOT_MAX_MESSAGE_AGE_SECONDS;
 
 const { version } = await fetchLatestBaileysVersion();
 
@@ -47,22 +52,13 @@ async function baixarAudio(msg: any, caminho: string) {
     return arquivo;
 }
 
-function extractNumero(msg: any, sock: WASocket): string | null {
-    const raw = msg.key.fromMe
-        ? sock.user?.id
-        : msg.key.participant
-        || msg.key.participantAlt
-        || msg.key.remoteJidAlt
-        || msg.message?.extendedTextMessage?.contextInfo?.participant
-        || msg.key.remoteJid;
-
-    if (!raw) return null;
-
-    const numero = raw.split("@")[0].replace(/\D/g, "");
-
-    if (!numero.startsWith("55")) return null;
-
-    return numero;
+async function extractNumero(msg: any, sock: WASocket) {
+    return resolvePhoneNumber(msg.key, {
+        contextParticipant:
+            msg.message?.extendedTextMessage?.contextInfo?.participant,
+        getPhoneJidForLid: (lid) =>
+            sock.signalRepository.lidMapping.getPNForLID(lid)
+    });
 }
 
 async function startBot(usuario: Usuario) {
@@ -103,6 +99,9 @@ async function startBot(usuario: Usuario) {
             usuario.qrCode = qr;
             usuario.ativado = true;
             usuario.status = "CONNECTING";
+            await funcoes.atualizarQrCode(qr, usuarioId, "BAILEYS").catch((err) => {
+                botLogger.warn({ err }, "Nao foi possivel persistir o QR code");
+            });
             botLogger.info({ qrLength: qr.length }, "QR code atualizado");
         }
 
@@ -186,7 +185,7 @@ async function startBot(usuario: Usuario) {
             msg.message.extendedTextMessage?.text ||
             "";
 
-        const numero = extractNumero(msg, sock);
+        const numero = await extractNumero(msg, sock);
         const remoteJid = msg.key.remoteJid;
 
         botLogger.debug({ numero, remoteJid }, "Dados extraídos");
@@ -274,7 +273,7 @@ async function startBot(usuario: Usuario) {
         const timestamp = Number(msg.messageTimestamp);
         const agora = Math.floor(Date.now() / 1000);
 
-        if (agora - timestamp > 10) {
+        if (agora - timestamp > IDADE_MAXIMA_MENSAGEM) {
             botLogger.debug({ timestamp, agora }, "Ignorado: mensagem antiga");
             return;
         }
@@ -290,51 +289,72 @@ async function startBot(usuario: Usuario) {
             }
 
             botLogger.debug({ numero, texto }, "Adicionando à fila");
-            juntarMensagens(numero, texto);
+            const queueKey = `${usuarioId}:${numero}`;
+            juntarMensagens(queueKey, texto);
 
-            timeouts[numero] = setTimeout(async () => {
+            timeouts[queueKey] = setTimeout(() => {
+                void (async () => {
                 botLogger.debug({ numero }, "Processando fila de mensagens");
 
-                const mensagens = mensagensPendentes[numero];
+                const mensagens = mensagensPendentes[queueKey];
 
-                delete mensagensPendentes[numero];
-                delete timeouts[numero];
+                delete mensagensPendentes[queueKey];
+                delete timeouts[queueKey];
 
-                botLogger.debug({ mensagens }, "Mensagens agrupadas");
+                try {
+                    botLogger.debug({ mensagens }, "Mensagens agrupadas");
 
-                const resposta = await botFuncs.responderPergunta(
-                    mensagens,
-                    numero,
-                    usuarioId,
-                    sock
-                );
+                    const resposta = await botFuncs.responderPergunta(
+                        mensagens,
+                        numero,
+                        usuarioId,
+                        sock
+                    );
 
-                if (!resposta) {
-                    botLogger.warn({ numero }, "Sem resposta da IA");
-                    return;
+                    if (!resposta) {
+                        botLogger.warn({ numero }, "Sem resposta da IA");
+                        return;
+                    }
+
+                    const partes = resposta
+                        .split("(SEPARAR)")
+                        .map((parte) => parte.trim())
+                        .filter(Boolean);
+
+                    botLogger.debug({ totalPartes: partes.length }, "Resposta dividida");
+
+                    for (const [index, parte] of partes.entries()) {
+                        botLogger.debug({ parte, index }, "Enviando parte da resposta");
+
+                        await sock.sendPresenceUpdate("composing", remoteJid);
+
+                        if (TEMPO_DIGITANDO > 0) {
+                            await new Promise((resolve) =>
+                                setTimeout(resolve, TEMPO_DIGITANDO)
+                            );
+                        }
+
+                        await sock.sendMessage(remoteJid, {
+                            text: `*BOT IDEALZINHO:*\n${parte}`,
+                        });
+
+                        await sock.sendPresenceUpdate("paused", remoteJid);
+
+                        if (index < partes.length - 1 && TEMPO_ENTRE_PARTES > 0) {
+                            await new Promise((resolve) =>
+                                setTimeout(resolve, TEMPO_ENTRE_PARTES)
+                            );
+                        }
+                    }
+
+                    botLogger.debug({ numero }, "Resposta finalizada");
+                } catch (err) {
+                    botLogger.error(
+                        { err, from: remoteJid, numero },
+                        "Erro ao gerar ou enviar resposta"
+                    );
                 }
-
-                const partes = resposta.includes("(SEPARAR)")
-                    ? resposta.split("(SEPARAR)")
-                    : [resposta];
-
-                botLogger.debug({ totalPartes: partes.length }, "Resposta dividida");
-
-                for (const parte of partes) {
-                    botLogger.debug({ parte }, "Enviando parte da resposta");
-
-                    await sock.sendPresenceUpdate("composing", remoteJid);
-                    await new Promise((resolve) => setTimeout(resolve, 4000));
-
-                    await sock.sendMessage(remoteJid, {
-                        text: `*BOT IDEALZINHO:*\n${parte}`,
-                    });
-
-                    await sock.sendPresenceUpdate("paused", remoteJid);
-                    await new Promise((resolve) => setTimeout(resolve, 20000));
-                }
-
-                botLogger.debug({ numero }, "Resposta finalizada");
+                })();
             }, TEMPO_ESPERA);
 
             botLogger.debug({ numero, tempo: TEMPO_ESPERA }, "Timeout agendado");
@@ -383,6 +403,11 @@ async function disconnectBot(usuario: Usuario) {
         usuario.cliente = null;
         usuario.qrCode = null;
         usuario.status = "OFFLINE";
+        await useMensagem()
+            .atualizarConecao(usuario.id, "OFFLINE", "BAILEYS")
+            .catch((err) => {
+                botLogger.warn({ err }, "Nao foi possivel persistir o status offline");
+            });
 
         botLogger.info("Cliente desconectado com sucesso");
     } catch (err) {

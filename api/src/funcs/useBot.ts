@@ -38,22 +38,21 @@ export default function useBot() {
   };
 
   async function criarLead(usuario_id: number, numero: string) {
-
-    const lead = await prisma.leads.findFirst({
-      where: { numero: numero, cliente_id: usuario_id },
-      select: { id: true }
-    });
-    if (!lead) {
-      await prisma.leads.create({
-        data: {
+    return prisma.leads.upsert({
+        where: {
+          cliente_id_numero: {
+            cliente_id: usuario_id,
+            numero
+          }
+        },
+        update: {},
+        create: {
           cliente_id: usuario_id,
           numero: numero,
           ia_ativa: true
-        }
+        },
+        select: { id: true }
       });
-    }
-
-    return;
   };
 
   async function getLead(numero: string, usuario_id: number) {
@@ -152,6 +151,11 @@ export default function useBot() {
 
     const numero = limparNumero(numeroOriginal);
 
+    const atividade = await getAtividade(usuario_id, numero);
+    if (!atividade) return "";
+
+    await criarLead(usuario_id, numero);
+
     const promptBanco: string | null = await getPrompt(usuario_id);
     const lead = await prisma.leads.findFirst({
       where: { numero: numero, cliente_id: usuario_id },
@@ -159,14 +163,11 @@ export default function useBot() {
     })
 
     const temperatura = lead?.qualidade || 'fria';
-    let superPropt = configurePrompt(promptBanco, temperatura);
-
-    const atividade = await getAtividade(usuario_id, numero);
-    if (!atividade) return;
-
-    let historico = await getHistorico(usuario_id, numero, mensagem);
-    superPropt.unshift(...historico);
-    historico = superPropt;
+    const promptConfigurado = configurePrompt(promptBanco, temperatura);
+    const historico = [
+      ...promptConfigurado,
+      ...await getHistorico(usuario_id, numero, mensagem)
+    ];
 
 
     await atualizarInteresse(historico, lead).catch(err => console.error("Erro ao atualizar interesse:", err));
@@ -188,18 +189,18 @@ export default function useBot() {
       }
     });
 
-    if (lead && resposta) {
+    if (resposta) {
       await insertHistorico({
         autor: 'Lead',
         mensagem: mensagem,
-        lead_id: lead ? lead.id : 0,
+        lead_id: lead!.id,
         tokens_usados: mensagem.length
       });
 
       await insertHistorico({
         autor: 'Assistant',
         mensagem: resposta,
-        lead_id: lead ? lead.id : 0,
+        lead_id: lead!.id,
         tokens_usados: resposta.length
       });
     }
@@ -208,6 +209,8 @@ export default function useBot() {
   };
 
   async function atualizarInteresse(historico: Message[], lead: any) {
+    if (!lead?.id) return;
+
     const historicoFiltrado = historico.filter(msg => msg.role !== 'system');
 
     let mensagensParaAnalise = historicoFiltrado.slice(-10);
@@ -233,14 +236,24 @@ export default function useBot() {
         return;
       }
 
+      if (!parsed || typeof parsed !== "object") {
+        return;
+      }
+
       if (parsed.interesse == "falar_com_atendente") {
         await mudarAtividadeIA(lead?.id);
       }
 
+      const qualidade = String(parsed.temperatura ?? "").toUpperCase();
+      const qualidadeValida = ["FRIA", "MORNA", "QUENTE"].includes(qualidade);
+
       // console.log("Interesse analisado pelo Colombo:", parsed);
       await prisma.leads.update({
-        where: { id: lead?.id },
-        data: { interesse: parsed.interesse || "nenhum_interesse", qualidade: (parsed.temperatura).toUpperCase() || "FRIA" }
+        where: { id: lead.id },
+        data: {
+          interesse: parsed.interesse || "nenhum_interesse",
+          qualidade: qualidadeValida ? qualidade as "FRIA" | "MORNA" | "QUENTE" : "FRIA"
+        }
       });
     }
   };

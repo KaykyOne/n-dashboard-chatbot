@@ -5,6 +5,7 @@ import {
     requestBotPairingCode,
     startBot
 } from "../services/bot.service.js";
+import startAllConfiguredBots from "../bots/bot.js";
 import { createLogger } from "../utils/logger.js";
 
 const logger = createLogger({ module: "bot-controller" });
@@ -66,6 +67,16 @@ async function getQrCode(req: Request, res: Response) {
     }
 };
 
+async function startAll(_req: Request, res: Response) {
+    try {
+        await startAllConfiguredBots();
+        res.status(200).send({ message: "Bots configurados iniciados com sucesso!" });
+    } catch (err) {
+        logger.error({ err }, "Erro ao iniciar bots configurados");
+        res.status(500).send({ message: "Erro ao iniciar bots configurados!" });
+    }
+}
+
 async function pairingCode(req: Request, res: Response) {
     const id = Number(req.params.id);
     const phoneNumber = String(req.body?.phoneNumber ?? "");
@@ -99,5 +110,6 @@ export {
     disconnect,
     getQrCode,
     pairingCode,
-    start
+    start,
+    startAll
 };

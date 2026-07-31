@@ -1,5 +1,6 @@
 import fs from "fs";
 import { defaultProvider, getProviderAdapter } from "../bots/providers.js";
+import { serverEnv } from "../env.js";
 import type { Usuario } from "../types/usuario.js";
 import { createLogger } from "../utils/logger.js";
 
@@ -94,6 +95,12 @@ async function initializeBot(id: number) {
 }
 
 async function startBot(id: number) {
+    // if (serverEnv.BOT_USER_ID && id !== serverEnv.BOT_USER_ID) {
+    //     throw new Error(
+    //         `Bot restrito ao usuario ${serverEnv.BOT_USER_ID} neste ambiente.`
+    //     );
+    // }
+
     const existente = usuarios.find((usuario) => usuario.id === id);
 
     if (existente && (existente.cliente || existente.status !== "OFFLINE")) {

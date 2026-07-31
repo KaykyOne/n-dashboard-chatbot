@@ -1,8 +1,10 @@
 import prisma from '../../prisma/prisma.js';
+import { serverEnv } from '../env.js';
 import {
     isTestMessageAllowed,
     normalizeTestPhoneNumber
 } from './test-mode.js';
+import { getPhoneNumberVariants } from './whatsapp-address.js';
 
 export default function useUsuario() {
     async function getAtividade(usuario_id?: number, telefone?: string, lead_id?: number) {
@@ -30,16 +32,16 @@ export default function useUsuario() {
             test = (testUsuario?.ia_ativa && testUsuario?.ativo) || false;
         }
 
-        console.log("teste do usuario")
-        console.log(test);
-
-        
         return test;
     }
 
     async function getAllUsers() {
         const users = await prisma.usuarios.findMany({
-            where: { ia_ativa: true, ativo: true }
+            where: {
+                id: serverEnv.BOT_USER_ID,
+                ia_ativa: true,
+                ativo: true
+            }
         });
         return users;
     }
@@ -48,24 +50,26 @@ export default function useUsuario() {
         const numero = normalizeTestPhoneNumber(telefone);
         const configuracao = await prisma.usuarios.findUnique({
             where: { id: usuarioId },
-            select: {
-                modo_teste: true,
-                numerosTeste: {
-                    where: { numero },
-                    select: { id: true },
-                    take: 1
-                }
-            }
+            select: { modo_teste: true }
         });
 
         if (!configuracao) {
             return false;
         }
 
-        return isTestMessageAllowed(
-            configuracao.modo_teste,
-            configuracao.numerosTeste.length > 0
-        );
+        if (!configuracao.modo_teste) {
+            return isTestMessageAllowed(false, false);
+        }
+
+        const numeroCadastrado = await prisma.numerosTeste.findFirst({
+            where: {
+                cliente_id: usuarioId,
+                numero: { in: getPhoneNumberVariants(numero) }
+            },
+            select: { id: true }
+        });
+
+        return isTestMessageAllowed(true, Boolean(numeroCadastrado));
     }
 
     return {

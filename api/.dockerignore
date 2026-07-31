@@ -1,0 +1,7 @@
+node_modules
+generated
+src/bots/baileys/sessions
+src/bots/baileys/audios
+.env
+.git
+npm-debug.log*
