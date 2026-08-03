@@ -3,11 +3,15 @@ services:
     build:
       context: ./front
       dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_URL: https://vps57731.publiccloud.com.br/apibot
     container_name: botchat-dashboard
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     env_file:
       - ./front/.env
+    environment:
+      NEXT_PUBLIC_URL: https://vps57731.publiccloud.com.br/apibot
     depends_on:
       - bot
     restart: unless-stopped
@@ -18,9 +22,11 @@ services:
       dockerfile: Dockerfile
     container_name: botchat-api
     ports:
-      - "3002:3002"
+      - "127.0.0.1:3002:3002"
     env_file:
       - ./api/.env
+    environment:
+      CORS_ORIGIN: https://vps57731.publiccloud.com.br
     restart: unless-stopped
     volumes:
       - ./api/src/bots/baileys/sessions:/app/src/bots/baileys/sessions

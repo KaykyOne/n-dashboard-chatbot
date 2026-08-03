@@ -9,6 +9,9 @@ RUN npm ci
 
 COPY . .
 
+ARG NEXT_PUBLIC_URL
+ENV NEXT_PUBLIC_URL=$NEXT_PUBLIC_URL
+
 RUN npm run build
 
 # Production stage
