@@ -63,11 +63,14 @@ model WhatsappInstances {
   cliente      Usuarios         @relation(fields: [cliente_id], references: [id])
   cliente_id   Int
   provider     WhatsAppProvider
+  enabled      Boolean          @default(false)
   status       InstanceStatus   @default(OFFLINE)
   session_path String?
   qr_code      String?
   created_at   DateTime         @default(now())
   updated_at   DateTime         @updatedAt
+
+  @@unique([cliente_id, provider])
 }
 
 model Leads {

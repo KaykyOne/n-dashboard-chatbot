@@ -6,6 +6,7 @@ export interface WhatsappInstance {
   cliente?: Usuario;
   cliente_id: number;
   provider: WhatsAppProvider;
+  enabled: boolean;
   status: InstanceStatus;
   session_path?: string | null;
   qr_code?: string | null;

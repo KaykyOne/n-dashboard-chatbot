@@ -22,4 +22,6 @@ app.listen(PORT, "0.0.0.0", () => {
     logger.info({ host: "0.0.0.0", port: PORT }, "Servidor HTTP iniciado");
 });
 
-startBot();
+void startBot().catch((err) => {
+    logger.error({ err }, "Falha ao restaurar os bots na inicializacao");
+});

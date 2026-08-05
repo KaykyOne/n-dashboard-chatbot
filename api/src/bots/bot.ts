@@ -1,6 +1,9 @@
 import { Usuarios } from "../../generated/prisma/client";
 import Funcoes from "../funcs/useUsuario";
-import { startBot as startManagedBot, usuarios } from "../services/bot.service";
+import {
+    getBotRuntimes,
+    startBot as startManagedBot
+} from "../services/bot.service";
 import { createLogger } from "../utils/logger";
 
 let iniciado = false;
@@ -40,12 +43,16 @@ const startBot = async () => {
 setInterval(() => {
     if (!iniciado) return;
 
-    const ativos = usuarios.filter((user) => user.ativado === true);
+    const runtimes = getBotRuntimes();
+    const ativos = runtimes.filter((user) => user.ativado === true);
 
     if (ativos.length === 0) {
         logger.error("Todos os usuarios foram desligados");
     } else {
-        logger.debug({ ativos: ativos.length, registrados: usuarios.length }, "Resumo periodico de usuarios");
+        logger.debug(
+            { ativos: ativos.length, registrados: runtimes.length },
+            "Resumo periodico de runtimes"
+        );
     }
 }, 10000);
 

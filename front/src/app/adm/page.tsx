@@ -82,7 +82,7 @@ export default function Page() {
           .order('updated_at', { ascending: false }),
         supabase
           .from('WhatsappInstances')
-          .select('id, cliente_id, provider, status, created_at, updated_at')
+          .select('id, cliente_id, provider, enabled, status, created_at, updated_at')
           .order('updated_at', { ascending: false }),
       ])
 

@@ -279,6 +279,8 @@ const getModoTeste = async () => {
     const response = await fetch(`${getBotApiUrl()}/test-mode/${usuarioId}`, {
       cache: "no-store"
     });
+
+    console.log("Resposta da API de modo teste:", response);
     const data = await getResponseBody(response);
 
     return Boolean(data.enabled);

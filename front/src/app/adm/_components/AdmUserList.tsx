@@ -26,6 +26,10 @@ function getStatusLabel(instance?: AdmWhatsappInstance) {
     return { label: 'Sem instancia', tone: 'border-white/8 bg-[#181818] text-[#a09d98]' }
   }
 
+  if (!instance.enabled) {
+    return { label: 'Runtime parado', tone: 'border-white/8 bg-[#181818] text-[#a09d98]' }
+  }
+
   const tones: Record<string, string> = {
     ONLINE: 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300',
     CONNECTING: 'border-amber-500/20 bg-amber-500/10 text-amber-300',

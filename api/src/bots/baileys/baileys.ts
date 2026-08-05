@@ -266,12 +266,12 @@ async function startBot(usuario: Usuario) {
                     sock.user?.id,
                     state.creds.me?.id
                 );
-                const desativadoAgora = await funcoes
-                    .desativarBotPermanentemente(usuarioId, "BAILEYS")
+                const runtimeDesativado = await funcoes
+                    .marcarRuntimeComErro(usuarioId, "BAILEYS")
                     .catch((err) => {
                         botLogger.error(
                             { err },
-                            "Falha ao persistir desligamento permanente"
+                            "Falha ao persistir erro do runtime"
                         );
                         return true;
                     });
@@ -303,9 +303,9 @@ async function startBot(usuario: Usuario) {
                     "Limite de reconexoes atingido; sessao removida e cliente desativado"
                 );
 
-                if (!desativadoAgora) {
+                if (!runtimeDesativado) {
                     botLogger.info(
-                        "Alerta ignorado: outro processo ja concluiu o desligamento"
+                        "Alerta ignorado: runtime ja estava desligado"
                     );
                     return;
                 }

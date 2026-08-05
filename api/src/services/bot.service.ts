@@ -3,11 +3,9 @@ import { removeBaileysSessionDirectory } from "../funcs/baileys-session.js";
 import useMensagem from "../funcs/useMensagem.js";
 import type { Usuario } from "../types/usuario.js";
 import { createLogger } from "../utils/logger.js";
+import { botRuntimeManager } from "./bot-runtime-manager.js";
 
 const logger = createLogger({ module: "bot-service" });
-
-let usuarios: Usuario[] = [];
-const inicializacoes = new Map<number, Promise<Usuario | void>>();
 
 type BotConnectionState = {
     connected: boolean;
@@ -44,33 +42,60 @@ async function disconnectRegisteredUser(user: Usuario, options?: DisconnectBotOp
 
     if (options?.resetSession) {
         await removeProviderSessions(user.id);
-        await useMensagem().desativarBotPermanentemente(
-            user.id,
-            user.provider
-        );
     }
 
-    usuarios = usuarios.filter((usuario) => usuario.id !== user.id);
+    botRuntimeManager.remove(user.id, user);
     logger.info(
-        { usuarioId: user.id, provider: user.provider, ativosRestantes: usuarios.length },
-        "Usuario removido da lista de ativos"
+        {
+            usuarioId: user.id,
+            provider: user.provider,
+            runtimesRestantes: botRuntimeManager.list().length
+        },
+        "Runtime do usuario encerrado"
     );
 }
 
 async function disconnectBot(id: number, options?: DisconnectBotOptions) {
-    try {
-        const user = usuarios.find((e) => e.id === id);
+    return botRuntimeManager.runExclusive(id, async () => {
+        const adapter = getProviderAdapter();
+        const persistence = useMensagem();
+        const user = botRuntimeManager.get(id);
 
-        if (!user) {
-            logger.warn({ usuarioId: id }, "Usuario nao encontrado para desconexao");
-            return;
+        await persistence
+            .atualizarRuntime(id, adapter.provider, {
+                enabled: false,
+                status: "OFFLINE",
+                qrCode: null,
+                sessionPath: options?.resetSession
+                    ? null
+                    : adapter.getSessionPaths(id)[0]
+            })
+            .catch((err) => {
+                logger.warn(
+                    { usuarioId: id, err },
+                    "Nao foi possivel persistir o desligamento do runtime"
+                );
+            });
+
+        try {
+            if (user) {
+                await disconnectRegisteredUser(user, options);
+            } else {
+                logger.info(
+                    { usuarioId: id },
+                    "Runtime ja estava desligado"
+                );
+
+                if (options?.resetSession) {
+                    await removeProviderSessions(id);
+                }
+            }
+        } catch (err) {
+            logger.error({ usuarioId: id, err }, "Erro ao desconectar usuario no service");
+            botRuntimeManager.remove(id, user);
+            throw err;
         }
-
-        await disconnectRegisteredUser(user, options);
-    } catch (err) {
-        logger.error({ usuarioId: id, err }, "Erro ao desconectar usuario no service");
-        usuarios = usuarios.filter((e) => e.id !== id);
-    }
+    });
 }
 
 async function initializeBot(id: number) {
@@ -86,49 +111,69 @@ async function initializeBot(id: number) {
         provider
     };
 
-    logger.info({ usuarioId: id, provider }, "Iniciando usuario via service");
-    const res: Usuario | void = await adapter.start(user);
+    logger.info({ usuarioId: id, provider }, "Iniciando runtime do usuario");
+    botRuntimeManager.register(user);
 
-    if (res != null) {
-        usuarios.push(res);
+    try {
+        await useMensagem()
+            .atualizarRuntime(id, provider, {
+                enabled: true,
+                status: "CONNECTING",
+                qrCode: null,
+                sessionPath: adapter.getSessionPaths(id)[0]
+            })
+            .catch((err) => {
+                logger.warn(
+                    { usuarioId: id, err },
+                    "Nao foi possivel persistir a inicializacao do runtime"
+                );
+            });
+
+        const res: Usuario | void = await adapter.start(user);
+
+        if (res != null) {
+            botRuntimeManager.register(res);
+        }
+
         logger.info(
-            { usuarioId: id, provider, totalRegistrados: usuarios.length, providerPadrao: defaultProvider },
-            "Usuario adicionado a lista de ativos"
+            {
+                usuarioId: id,
+                provider,
+                totalRuntimes: botRuntimeManager.list().length,
+                providerPadrao: defaultProvider
+            },
+            "Runtime do usuario registrado"
         );
-    }
 
-    return res;
+        return res;
+    } catch (err) {
+        botRuntimeManager.remove(id, user);
+        throw err;
+    }
 }
 
 async function startBot(id: number) {
-    const existente = usuarios.find((usuario) => usuario.id === id);
+    return botRuntimeManager.runExclusive(id, async () => {
+        const existente = botRuntimeManager.get(id);
 
-    if (existente && (existente.cliente || existente.status !== "OFFLINE")) {
-        logger.debug({ usuarioId: id, provider: existente.provider }, "Usuario ja possui cliente registrado");
-        return existente;
-    }
+        if (existente && (existente.cliente || existente.status !== "OFFLINE")) {
+            logger.debug(
+                { usuarioId: id, provider: existente.provider },
+                "Usuario ja possui runtime registrado"
+            );
+            return existente;
+        }
 
-    if (existente) {
-        usuarios = usuarios.filter((usuario) => usuario.id !== id);
-    }
+        if (existente) {
+            botRuntimeManager.remove(id, existente);
+        }
 
-    const inicializacaoPendente = inicializacoes.get(id);
-    if (inicializacaoPendente) {
-        return inicializacaoPendente;
-    }
-
-    const inicializacao = initializeBot(id);
-    inicializacoes.set(id, inicializacao);
-
-    try {
-        return await inicializacao;
-    } finally {
-        inicializacoes.delete(id);
-    }
+        return initializeBot(id);
+    });
 }
 
 function getBotConnectionState(id: number): BotConnectionState {
-    const user = usuarios.find((usuario) => usuario.id === id);
+    const user = botRuntimeManager.get(id);
 
     if (!user) {
         return {
@@ -147,6 +192,10 @@ function getBotConnectionState(id: number): BotConnectionState {
         qrCode: user.status === "ONLINE" ? null : user.qrCode,
         status: user.status
     };
+}
+
+function getBotRuntimes() {
+    return botRuntimeManager.list();
 }
 
 async function requestBotPairingCode(id: number, phoneNumber: string) {
@@ -180,7 +229,7 @@ async function requestBotPairingCode(id: number, phoneNumber: string) {
 export {
     disconnectBot,
     getBotConnectionState,
+    getBotRuntimes,
     requestBotPairingCode,
-    startBot,
-    usuarios
+    startBot
 };

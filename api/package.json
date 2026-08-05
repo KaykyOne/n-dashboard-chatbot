@@ -14,7 +14,9 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
+    "predev": "prisma generate",
     "dev": "tsx watch src/server.ts",
+    "prestart": "prisma generate",
     "start": "tsx src/server.ts",
     "test": "tsx --test src/funcs/*.test.ts",
     "typecheck": "tsc --noEmit",

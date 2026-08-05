@@ -39,20 +39,20 @@ export default function useBot() {
 
   async function criarLead(usuario_id: number, numero: string) {
     return prisma.leads.upsert({
-        where: {
-          cliente_id_numero: {
-            cliente_id: usuario_id,
-            numero
-          }
-        },
-        update: {},
-        create: {
+      where: {
+        cliente_id_numero: {
           cliente_id: usuario_id,
-          numero: numero,
-          ia_ativa: true
-        },
-        select: { id: true }
-      });
+          numero
+        }
+      },
+      update: {},
+      create: {
+        cliente_id: usuario_id,
+        numero: numero,
+        ia_ativa: true
+      },
+      select: { id: true }
+    });
   };
 
   async function getLead(numero: string, usuario_id: number) {
@@ -178,8 +178,10 @@ export default function useBot() {
     const resposta = await runCalculationAgent(historico, {
       complete: async (messages) => {
         const completion = await chatgpt.chat.completions.create({
-          model: 'o4-mini',
+          model: 'gpt-5.6-terra',
           messages,
+          reasoning_effort: 'low',
+          verbosity: 'low',
           response_format: {
             type: 'json_object'
           }

@@ -37,8 +37,13 @@ export default function useUsuario() {
     async function getAllUsers() {
         const users = await prisma.usuarios.findMany({
             where: {
-                ia_ativa: true,
-                ativo: true
+                ativo: true,
+                whatsappInstances: {
+                    some: {
+                        provider: "BAILEYS",
+                        enabled: true
+                    }
+                }
             }
         });
         return users;

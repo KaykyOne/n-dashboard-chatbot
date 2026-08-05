@@ -81,17 +81,7 @@ export default function Modal({ setModalOpen }: ModalProps) {
         let active = true
 
         const initializeConnection = async () => {
-            const currentState = await getQrCode()
-
-            if (!active || currentState?.connected) return
-
-            if (!currentState?.initialized) {
-                await conectar()
-            }
-
-            if (active) {
-                await getQrCode()
-            }
+            if (active) await getQrCode()
         }
 
         void initializeConnection()
@@ -99,7 +89,7 @@ export default function Modal({ setModalOpen }: ModalProps) {
         return () => {
             active = false
         }
-    }, [conectar, getQrCode])
+    }, [getQrCode])
 
     useEffect(() => {
         if (conectado) return

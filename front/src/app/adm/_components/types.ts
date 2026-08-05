@@ -13,6 +13,7 @@ export interface AdmWhatsappInstance {
   id: number
   cliente_id: number
   provider: string
+  enabled: boolean
   status: string
   created_at: string
   updated_at: string
