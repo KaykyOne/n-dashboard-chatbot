@@ -34,7 +34,8 @@ export default function useMensagem() {
                 enabled: runtime.enabled,
                 status: runtime.status,
                 qr_code: runtime.qrCode,
-                session_path: runtime.sessionPath
+                session_path: runtime.sessionPath,
+                last_error: null
             }
         });
 
@@ -70,7 +71,8 @@ export default function useMensagem() {
             update: {
                 enabled: true,
                 qr_code: qr,
-                status: "CONNECTING"
+                status: "CONNECTING",
+                last_error: null
             }
         });
 
@@ -82,7 +84,8 @@ export default function useMensagem() {
             where: { cliente_id: id_usuario, provider },
             data: {
                 status,
-                ...(status === "ONLINE" ? { qr_code: null } : {})
+                ...(status === "ONLINE" ? { qr_code: null } : {}),
+                last_error: null
             }
         });
 
@@ -91,7 +94,8 @@ export default function useMensagem() {
 
     async function marcarRuntimeComErro(
         usuarioId: number,
-        provider: WhatsAppProvider
+        provider: WhatsAppProvider,
+        errorMessage = "A conexao com o WhatsApp falhou apos varias tentativas de reconexao."
     ) {
         const runtimeAtualizado = await prisma.whatsappInstances.updateMany({
             where: {
@@ -102,7 +106,8 @@ export default function useMensagem() {
                 enabled: false,
                 qr_code: null,
                 session_path: null,
-                status: "ERROR"
+                status: "ERROR",
+                last_error: errorMessage
             }
         });
 

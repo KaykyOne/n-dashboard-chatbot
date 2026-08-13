@@ -506,8 +506,8 @@ export default function Modal({ setModalOpen }: ModalProps) {
                             </h2>
 
                             <div className="flex items-center gap-2 rounded-full border border-white/8 bg-[#171717] px-3 py-1.5 text-[11px] uppercase tracking-[0.12em] text-[#8a8782]">
-                                <span className={`h-2 w-2 rounded-full ${conectado ? 'bg-green-400' : status === 'CONNECTING' ? 'animate-pulse bg-amber-300' : 'bg-[#5a5754]'}`} />
-                                {conectado ? 'Online' : status === 'CONNECTING' ? 'Aguardando' : 'Offline'}
+                                <span className={`h-2 w-2 rounded-full ${conectado ? 'bg-green-400' : status === 'CONNECTING' ? 'animate-pulse bg-amber-300' : status === 'ERROR' ? 'bg-red-400' : 'bg-[#5a5754]'}`} />
+                                {conectado ? 'Online' : status === 'CONNECTING' ? 'Aguardando' : status === 'ERROR' ? 'Com erro' : 'Offline'}
                             </div>
                         </div>
 
@@ -661,6 +661,13 @@ export default function Modal({ setModalOpen }: ModalProps) {
                                         <div className="flex items-start gap-3 rounded-xl border border-red-400/15 bg-red-400/5 px-4 py-3 text-xs leading-5 text-red-200">
                                             <span className="material-symbols-outlined mt-0.5 text-base">error</span>
                                             <span>{connectionError}</span>
+                                        </div>
+                                    ) : null}
+
+                                    {status === 'ERROR' && !connectionError ? (
+                                        <div className="flex items-start gap-3 rounded-xl border border-red-400/15 bg-red-400/5 px-4 py-3 text-xs leading-5 text-red-200">
+                                            <span className="material-symbols-outlined mt-0.5 text-base">error</span>
+                                            <span>A conexao com o WhatsApp falhou. Clique em “Gerar novo QR” para iniciar outra tentativa.</span>
                                         </div>
                                     ) : null}
                                 </>

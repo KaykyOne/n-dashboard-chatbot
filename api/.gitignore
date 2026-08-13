@@ -11,3 +11,5 @@ node_modules
 /audios/..
 
 /src/bots/baileys/sessions
+
+package-lock.json

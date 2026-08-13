@@ -60,7 +60,7 @@ async function getQrCode(req: Request, res: Response) {
 
     try {
         logger.info({ usuarioId: Number(id) }, "Requisicao de QR Code recebida");
-        res.status(200).send(getBotConnectionState(Number(id)));
+        res.status(200).send(await getBotConnectionState(Number(id)));
     } catch (err) {
         logger.error({ usuarioId: Number(id), err }, "Erro ao obter QR Code");
         res.status(500).send({ message: "Erro ao obter QR Code!" });

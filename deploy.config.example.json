@@ -1,0 +1,40 @@
+{
+  "name": "project-botchat",
+  "host": "ip",
+  "user": "root",
+  "port": 22,
+  "privateKey": "~/.ssh/id",
+  "localPath": ".",
+  "remotePath": "/var/www/project-botchat",
+  "runtime": "docker",
+  "ignore": [
+    "node_modules",
+    ".git",
+    ".next",
+    "api/node_modules",
+    "front/node_modules",
+    "front/.next",
+    "api/src/bot/audios",
+    "api/src/bot/sessions"
+  ],
+  "commands": {
+    "build": []
+  },
+  "docker": {
+    "projectName": "project-botchat",
+    "composeFile": "docker-compose.yml",
+    "build": true
+  },
+  "health": {
+    "url": "http://127.0.0.1:3002/status",
+    "timeout": 30000,
+    "interval": 2000
+  },
+  "sharedFiles": [
+    "front/.env",
+    "api/.env"
+  ],
+  "releases": {
+    "keep": 5
+  }
+}

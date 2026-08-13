@@ -8,23 +8,23 @@ import makeWASocket, {
 import fs from "fs";
 import path from "path";
 import pino from "pino";
-import useBot from "../../funcs/useBot";
-import useMensagem from "../../funcs/useMensagem";
+import useBot from "../funcs/useBot";
+import useMensagem from "../funcs/useMensagem";
 import {
     BAILEYS_CONNECTION_STABILITY_MS,
     MAX_BAILEYS_RECONNECTION_ATTEMPTS,
     getBotPhoneNumber,
     getReconnectionDecision
-} from "../../funcs/baileys-reconnection.js";
+} from "../funcs/baileys-reconnection.js";
 import {
     getBaileysSessionPath,
     removeBaileysSessionDirectory
-} from "../../funcs/baileys-session.js";
-import { resolvePhoneNumber } from "../../funcs/whatsapp-address.js";
-import { serverEnv } from "../../env.js";
-import { sendWhatsAppApiMessage } from "../../services/whatsapp-notification.service.js";
-import { createLogger } from "../../utils/logger";
-import type { Usuario } from "../../types/usuario";
+} from "../funcs/baileys-session.js";
+import { resolvePhoneNumber } from "../funcs/whatsapp-address.js";
+import { serverEnv } from "../env.js";
+import { sendWhatsAppApiMessage } from "../services/whatsapp-notification.service.js";
+import { createLogger } from "../utils/logger";
+import type { Usuario } from "../types/usuario";
 
 const mensagensPendentes: Record<string, string> = {};
 const timeouts: Record<string, NodeJS.Timeout> = {};
@@ -267,7 +267,11 @@ async function startBot(usuario: Usuario) {
                     state.creds.me?.id
                 );
                 const runtimeDesativado = await funcoes
-                    .marcarRuntimeComErro(usuarioId, "BAILEYS")
+                    .marcarRuntimeComErro(
+                        usuarioId,
+                        "BAILEYS",
+                        `A conexao com o WhatsApp falhou apos ${reconnectDecision.completedAttempts} tentativas (codigo ${statusCode ?? "desconhecido"}).`
+                    )
                     .catch((err) => {
                         botLogger.error(
                             { err },

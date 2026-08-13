@@ -7,6 +7,7 @@ export enum InstanceStatus {
   ONLINE = "ONLINE",
   OFFLINE = "OFFLINE",
   CONNECTING = "CONNECTING",
+  ERROR = "ERROR",
 }
 
 export enum Autor {

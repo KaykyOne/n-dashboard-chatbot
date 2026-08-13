@@ -1,11 +1,19 @@
-import { defaultProvider, getProviderAdapter } from "../bots/providers.js";
-import { removeBaileysSessionDirectory } from "../funcs/baileys-session.js";
+import {
+    disconnectBot as disconnectBaileysBot,
+    startBot as startBaileysBot
+} from "../bots/index.js";
+import {
+    getBaileysSessionPath,
+    removeBaileysSessionDirectory
+} from "../funcs/baileys-session.js";
 import useMensagem from "../funcs/useMensagem.js";
 import type { Usuario } from "../types/usuario.js";
 import { createLogger } from "../utils/logger.js";
+import prisma from "../../prisma/prisma.js";
 import { botRuntimeManager } from "./bot-runtime-manager.js";
 
 const logger = createLogger({ module: "bot-service" });
+const defaultProvider = "BAILEYS" as const;
 
 type BotConnectionState = {
     connected: boolean;
@@ -13,83 +21,47 @@ type BotConnectionState = {
     provider: typeof defaultProvider;
     qrCode: string | null;
     status: Usuario["status"];
+    lastError: string | null;
+    source: "runtime" | "database" | "none";
+    updatedAt: string | null;
 };
 
-type DisconnectBotOptions = {
-    resetSession?: boolean;
-};
+type DisconnectBotOptions = { resetSession?: boolean };
 
 async function removeProviderSessions(id: number) {
-    const adapter = getProviderAdapter();
+    const sessionPath = getBaileysSessionPath(id);
+    const removed = removeBaileysSessionDirectory(id, sessionPath);
 
-    for (const sessionPath of adapter.getSessionPaths(id)) {
-        const removed = removeBaileysSessionDirectory(id, sessionPath);
-
-        if (removed) {
-            logger.info(
-                { usuarioId: id, provider: defaultProvider, sessionPath },
-                "Sessao do provider removida"
-            );
-        }
+    if (removed) {
+        logger.info({ usuarioId: id, provider: defaultProvider, sessionPath }, "Sessao do provider removida");
     }
 }
 
 async function disconnectRegisteredUser(user: Usuario, options?: DisconnectBotOptions) {
-    const adapter = getProviderAdapter();
-
     logger.info({ usuarioId: user.id, provider: user.provider }, "Iniciando desconexao do usuario");
-    await adapter.disconnect(user, { logout: options?.resetSession });
+    await disconnectBaileysBot(user, { logout: options?.resetSession });
 
-    if (options?.resetSession) {
-        await removeProviderSessions(user.id);
-    }
+    if (options?.resetSession) await removeProviderSessions(user.id);
 
     botRuntimeManager.remove(user.id, user);
-    logger.info(
-        {
-            usuarioId: user.id,
-            provider: user.provider,
-            runtimesRestantes: botRuntimeManager.list().length
-        },
-        "Runtime do usuario encerrado"
-    );
+    logger.info({ usuarioId: user.id, provider: user.provider, runtimesRestantes: botRuntimeManager.list().length }, "Runtime do usuario encerrado");
 }
 
 async function disconnectBot(id: number, options?: DisconnectBotOptions) {
     return botRuntimeManager.runExclusive(id, async () => {
-        const adapter = getProviderAdapter();
         const persistence = useMensagem();
         const user = botRuntimeManager.get(id);
 
-        await persistence
-            .atualizarRuntime(id, adapter.provider, {
-                enabled: false,
-                status: "OFFLINE",
-                qrCode: null,
-                sessionPath: options?.resetSession
-                    ? null
-                    : adapter.getSessionPaths(id)[0]
-            })
-            .catch((err) => {
-                logger.warn(
-                    { usuarioId: id, err },
-                    "Nao foi possivel persistir o desligamento do runtime"
-                );
-            });
+        await persistence.atualizarRuntime(id, defaultProvider, {
+            enabled: false,
+            status: "OFFLINE",
+            qrCode: null,
+            sessionPath: options?.resetSession ? null : getBaileysSessionPath(id)
+        }).catch((err) => logger.warn({ usuarioId: id, err }, "Nao foi possivel persistir o desligamento do runtime"));
 
         try {
-            if (user) {
-                await disconnectRegisteredUser(user, options);
-            } else {
-                logger.info(
-                    { usuarioId: id },
-                    "Runtime ja estava desligado"
-                );
-
-                if (options?.resetSession) {
-                    await removeProviderSessions(id);
-                }
-            }
+            if (user) await disconnectRegisteredUser(user, options);
+            else if (options?.resetSession) await removeProviderSessions(id);
         } catch (err) {
             logger.error({ usuarioId: id, err }, "Erro ao desconectar usuario no service");
             botRuntimeManager.remove(id, user);
@@ -99,53 +71,32 @@ async function disconnectBot(id: number, options?: DisconnectBotOptions) {
 }
 
 async function initializeBot(id: number) {
-    const adapter = getProviderAdapter();
-    const provider = adapter.provider;
-
     const user: Usuario = {
         id,
         qrCode: null,
         cliente: null,
         ativado: true,
         status: "CONNECTING",
-        provider
+        provider: defaultProvider
     };
 
-    logger.info({ usuarioId: id, provider }, "Iniciando runtime do usuario");
+    logger.info({ usuarioId: id, provider: defaultProvider }, "Iniciando runtime do usuario");
     botRuntimeManager.register(user);
 
     try {
-        await useMensagem()
-            .atualizarRuntime(id, provider, {
-                enabled: true,
-                status: "CONNECTING",
-                qrCode: null,
-                sessionPath: adapter.getSessionPaths(id)[0]
-            })
-            .catch((err) => {
-                logger.warn(
-                    { usuarioId: id, err },
-                    "Nao foi possivel persistir a inicializacao do runtime"
-                );
-            });
+        await useMensagem().atualizarRuntime(id, defaultProvider, {
+            enabled: true,
+            status: "CONNECTING",
+            qrCode: null,
+            sessionPath: getBaileysSessionPath(id)
+        }).catch((err) => logger.warn({ usuarioId: id, err }, "Nao foi possivel persistir a inicializacao do runtime"));
 
-        const res: Usuario | void = await adapter.start(user);
-
-        if (res != null) {
-            botRuntimeManager.register(res);
+        const result = await startBaileysBot(user);
+        if (result) {
+            botRuntimeManager.register(result);
         }
-
-        logger.info(
-            {
-                usuarioId: id,
-                provider,
-                totalRuntimes: botRuntimeManager.list().length,
-                providerPadrao: defaultProvider
-            },
-            "Runtime do usuario registrado"
-        );
-
-        return res;
+        logger.info({ usuarioId: id, provider: defaultProvider, totalRuntimes: botRuntimeManager.list().length }, "Runtime do usuario registrado");
+        return result;
     } catch (err) {
         botRuntimeManager.remove(id, user);
         throw err;
@@ -154,43 +105,48 @@ async function initializeBot(id: number) {
 
 async function startBot(id: number) {
     return botRuntimeManager.runExclusive(id, async () => {
-        const existente = botRuntimeManager.get(id);
-
-        if (existente && (existente.cliente || existente.status !== "OFFLINE")) {
-            logger.debug(
-                { usuarioId: id, provider: existente.provider },
-                "Usuario ja possui runtime registrado"
-            );
-            return existente;
-        }
-
-        if (existente) {
-            botRuntimeManager.remove(id, existente);
-        }
-
+        const existing = botRuntimeManager.get(id);
+        if (existing && (existing.cliente || existing.status !== "OFFLINE")) return existing;
+        if (existing) botRuntimeManager.remove(id, existing);
         return initializeBot(id);
     });
 }
 
-function getBotConnectionState(id: number): BotConnectionState {
+async function getBotConnectionState(id: number): Promise<BotConnectionState> {
     const user = botRuntimeManager.get(id);
-
-    if (!user) {
+    if (user) {
         return {
-            connected: false,
-            initialized: false,
-            provider: defaultProvider,
-            qrCode: null,
-            status: "OFFLINE"
+            connected: user.status === "ONLINE",
+            initialized: true,
+            provider: user.provider,
+            qrCode: user.status === "ONLINE" ? null : user.qrCode,
+            status: user.status,
+            lastError: null,
+            source: "runtime",
+            updatedAt: null
         };
     }
 
+    // Runtime state exists only inside an API process. The database fallback
+    // makes polling work with PM2 cluster mode, containers, or load balancers.
+    const persisted = await prisma.whatsappInstances.findUnique({
+        where: { cliente_id_provider: { cliente_id: id, provider: defaultProvider } },
+        select: { enabled: true, status: true, qr_code: true, last_error: true, updated_at: true }
+    });
+
+    if (!persisted) {
+        return { connected: false, initialized: false, provider: defaultProvider, qrCode: null, status: "OFFLINE", lastError: null, source: "none", updatedAt: null };
+    }
+
     return {
-        connected: user.status === "ONLINE",
-        initialized: true,
-        provider: user.provider,
-        qrCode: user.status === "ONLINE" ? null : user.qrCode,
-        status: user.status
+        connected: persisted.status === "ONLINE",
+        initialized: persisted.enabled,
+        provider: defaultProvider,
+        qrCode: persisted.status === "ONLINE" ? null : persisted.qr_code,
+        status: persisted.status,
+        lastError: persisted.last_error,
+        source: "database",
+        updatedAt: persisted.updated_at.toISOString()
     };
 }
 
@@ -200,36 +156,18 @@ function getBotRuntimes() {
 
 async function requestBotPairingCode(id: number, phoneNumber: string) {
     const sanitizedPhoneNumber = phoneNumber.replace(/\D/g, "");
-
     if (sanitizedPhoneNumber.length < 8 || sanitizedPhoneNumber.length > 15) {
         throw new Error("Numero invalido. Informe DDI e telefone usando somente digitos.");
     }
 
     const user = await startBot(id);
-
-    if (!user?.cliente) {
-        throw new Error("Socket do WhatsApp ainda nao esta disponivel.");
-    }
-
+    if (!user || !user.cliente) throw new Error("Socket do WhatsApp ainda nao esta disponivel.");
     if (user.status === "ONLINE" || user.cliente.authState.creds.registered) {
         throw new Error("O WhatsApp deste usuario ja esta conectado.");
     }
 
     user.status = "CONNECTING";
-    const pairingCode = await user.cliente.requestPairingCode(sanitizedPhoneNumber);
-
-    logger.info(
-        { usuarioId: id, provider: user.provider, phoneSuffix: sanitizedPhoneNumber.slice(-4) },
-        "Codigo de pareamento solicitado"
-    );
-
-    return pairingCode;
+    return user.cliente.requestPairingCode(sanitizedPhoneNumber);
 }
 
-export {
-    disconnectBot,
-    getBotConnectionState,
-    getBotRuntimes,
-    requestBotPairingCode,
-    startBot
-};
+export { disconnectBot, getBotConnectionState, getBotRuntimes, requestBotPairingCode, startBot };

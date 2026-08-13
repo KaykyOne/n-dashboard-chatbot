@@ -67,6 +67,7 @@ model WhatsappInstances {
   status       InstanceStatus   @default(OFFLINE)
   session_path String?
   qr_code      String?
+  last_error   String?
   created_at   DateTime         @default(now())
   updated_at   DateTime         @updatedAt
 

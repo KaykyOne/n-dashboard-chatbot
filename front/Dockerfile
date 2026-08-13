@@ -5,7 +5,7 @@ WORKDIR /app
 
 COPY package*.json ./
 
-RUN npm ci
+RUN npm ci --include=optional
 
 COPY . .
 
@@ -21,7 +21,7 @@ WORKDIR /app
 
 COPY package*.json ./
 
-RUN npm ci --omit=dev
+RUN npm ci --include=optional
 
 COPY --from=builder /app/.next ./.next
 COPY public ./public

@@ -17,6 +17,9 @@ type ConnectionState = {
   provider: "BAILEYS";
   qrCode: string | null;
   status: ConnectionStatus;
+  lastError?: string | null;
+  source?: "runtime" | "database" | "none";
+  updatedAt?: string | null;
 };
 
 const getBotApiUrl = () => {
@@ -63,6 +66,10 @@ const useQrCode = () => {
     setStatus(state.status);
     setQrCode(state.connected ? null : state.qrCode);
 
+    if (state.lastError) {
+      setConnectionError(state.lastError);
+    }
+
     if (state.connected) {
       setPairingCode(null);
     }
@@ -72,15 +79,20 @@ const useQrCode = () => {
     try {
       const usuarioId = getUsuarioId();
       const response = await fetch(`${getBotApiUrl()}/qrcode/${usuarioId}`, {
-        cache: "no-store"
+        cache: "no-store",
+        signal: AbortSignal.timeout(12_000)
       });
       const data = await getResponseBody(response) as ConnectionState;
 
       applyConnectionState(data);
-      setConnectionError(null);
+      if (!data.lastError) {
+        setConnectionError(null);
+      }
       return data;
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Erro ao consultar conexao.";
+      const message = error instanceof DOMException && error.name === "TimeoutError"
+        ? "A API demorou mais de 12 segundos para responder. Verifique a conexao e tente novamente."
+        : error instanceof Error ? error.message : "Erro ao consultar conexao.";
       setConnectionError(message);
       console.error("Erro ao buscar QR Code na API:", error);
       return null;
